@@ -113,16 +113,16 @@ export const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'routes.office', icon: 'ConstructOutline' },
       },
       {
-        path: 'backup',
-        name: 'Backup',
-        component: () => import('@/views/backup/BackupPage.vue'),
-        meta: { titleKey: 'routes.backup', icon: 'ArchiveOutline' },
-      },
-      {
         path: 'myworld',
         name: 'MyWorld',
         component: () => import('@/views/myworld/MyWorldPage.vue'),
         meta: { titleKey: 'routes.myworld', icon: 'StorefrontOutline' },
+      },
+      {
+        path: 'backup',
+        name: 'Backup',
+        component: () => import('@/views/backup/BackupPage.vue'),
+        meta: { titleKey: 'routes.backup', icon: 'ArchiveOutline' },
       },
       {
         path: 'monitor',

@@ -28,6 +28,7 @@ function loadEnvConfig() {
       DEV_FRONTEND_URL: 'http://localhost:3000',
       AUTH_USERNAME: '',
       AUTH_PASSWORD: '',
+      MEDIA_DIR: '',
     }
   }
   const content = readFileSync(envPath, 'utf-8')
@@ -39,6 +40,7 @@ function loadEnvConfig() {
     DEV_FRONTEND_URL: parsed.DEV_FRONTEND_URL || 'http://localhost:3000',
     AUTH_USERNAME: parsed.AUTH_USERNAME || '',
     AUTH_PASSWORD: parsed.AUTH_PASSWORD || '',
+    MEDIA_DIR: parsed.MEDIA_DIR || '',
   }
 }
 
@@ -2172,30 +2174,79 @@ app.get('/api/media', (req, res) => {
       return res.status(400).json({ ok: false, error: { message: 'Path parameter is required' } })
     }
     
+    console.log('[Media] Request path:', path)
+    
     // Prevent directory traversal
     const safePath = path.replace(/\.\./g, '').replace(/\//g, sep)
+    console.log('[Media] Safe path:', safePath)
     
-    // 支持环境变量配置媒体目录，默认使用用户主目录下的 .openclaw/media
-    const defaultMediaDir = join(os.homedir(), '.openclaw', 'media')
-    const mediaDir = process.env.MEDIA_DIR || defaultMediaDir
-    const fullPath = resolve(mediaDir, safePath)
+    // 支持多个可能的媒体目录，按优先级搜索
+    const possibleMediaDirs = []
     
-    // Ensure the file is within the media directory
-    if (!fullPath.startsWith(mediaDir)) {
-      return res.status(403).json({ ok: false, error: { message: 'Access denied' } })
+    // 1. .env 文件中的 MEDIA_DIR（最高优先级）
+    if (envConfig.MEDIA_DIR) {
+      possibleMediaDirs.push(envConfig.MEDIA_DIR)
     }
     
-    if (!existsSync(fullPath)) {
+    // 2. 系统环境变量 MEDIA_DIR
+    if (process.env.MEDIA_DIR) {
+      possibleMediaDirs.push(process.env.MEDIA_DIR)
+    }
+    
+    // 3. OPENCLAW_HOME 推导的媒体目录
+    const openclawHome = process.env.OPENCLAW_HOME
+    if (openclawHome) {
+      possibleMediaDirs.push(join(openclawHome, '.openclaw', 'media'))
+    }
+    
+    // 4. 当前用户主目录
+    possibleMediaDirs.push(join(os.homedir(), '.openclaw', 'media'))
+    
+    // 5. 常见的其他用户目录（适用于 root 运行但文件在 ubuntu 用户目录的情况）
+    if (process.platform !== 'win32') {
+      possibleMediaDirs.push('/home/ubuntu/.openclaw/media')
+      possibleMediaDirs.push('/home/user/.openclaw/media')
+    }
+    
+    // 去重
+    const uniqueMediaDirs = [...new Set(possibleMediaDirs)]
+    console.log('[Media] Searching in dirs:', uniqueMediaDirs)
+    
+    let foundFile = null
+    let usedMediaDir = null
+    
+    for (const mediaDir of uniqueMediaDirs) {
+      const fullPath = resolve(mediaDir, safePath)
+      
+      // 安全检查：确保路径在媒体目录内
+      if (!fullPath.startsWith(mediaDir)) {
+        continue
+      }
+      
+      if (existsSync(fullPath)) {
+        const stats = statSync(fullPath)
+        if (stats.isFile()) {
+          foundFile = fullPath
+          usedMediaDir = mediaDir
+          break
+        }
+      }
+    }
+    
+    if (!foundFile) {
+      console.log('[Media] File not found in any media dir:', safePath)
       return res.status(404).json({ ok: false, error: { message: 'File not found' } })
     }
     
-    const stats = statSync(fullPath)
+    console.log('[Media] File found:', foundFile, '| Media dir:', usedMediaDir)
+    
+    const stats = statSync(foundFile)
     if (!stats.isFile()) {
       return res.status(400).json({ ok: false, error: { message: 'Not a file' } })
     }
     
     // Set appropriate content type based on file extension
-    const ext = extname(fullPath).toLowerCase()
+    const ext = extname(foundFile).toLowerCase()
     const contentTypeMap = {
       '.png': 'image/png',
       '.jpg': 'image/jpeg',
@@ -2210,7 +2261,7 @@ app.get('/api/media', (req, res) => {
     res.setHeader('Content-Length', stats.size)
     
     // Stream the file
-    const stream = createReadStream(fullPath)
+    const stream = createReadStream(foundFile)
     stream.pipe(res)
     
     stream.on('error', (err) => {
@@ -2264,10 +2315,21 @@ function broadcastBackupProgress(taskId, progress) {
 async function executeOpenClawBackup(outputPath) {
   return new Promise((resolve, reject) => {
     const args = ['backup', 'create', '--output', outputPath]
-    const proc = spawn('openclaw', args, {
+    
+    const openclawHome = process.env.OPENCLAW_HOME
+    const spawnOptions = {
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: process.platform === 'win32'
-    })
+      shell: process.platform === 'win32',
+      env: openclawHome 
+        ? { ...process.env, HOME: openclawHome }
+        : process.env
+    }
+    
+    if (openclawHome) {
+      console.log(`[Backup] Using OPENCLAW_HOME: ${openclawHome}`)
+    }
+    
+    const proc = spawn('openclaw', args, spawnOptions)
 
     let stdout = ''
     let stderr = ''
@@ -2296,8 +2358,9 @@ async function executeOpenClawBackup(outputPath) {
 
 async function extractOpenClawBackup(backupPath, tempDir) {
   return new Promise((resolve, reject) => {
-    const homeDir = os.homedir()
+    const homeDir = process.env.OPENCLAW_HOME || os.homedir()
     const openclawDir = join(homeDir, '.openclaw')
+    console.log('[Restore] Target OpenClaw directory:', openclawDir)
 
     if (!existsSync(backupPath)) {
       return reject(new Error(`OpenClaw backup file not found: ${backupPath}`))
@@ -2990,8 +3053,8 @@ app.get('/api/backup/download', authMiddleware, (req, res) => {
     
     // 安全检查：防止路径遍历
     const safeName = basename(filename)
-    if (safeName !== filename || !filename.endsWith('.json.gz')) {
-      return res.status(400).json({ ok: false, error: { message: 'Invalid filename' } })
+    if (safeName !== filename || (!filename.endsWith('.zip') && !filename.endsWith('.json.gz'))) {
+      return res.status(400).json({ ok: false, error: { message: 'Invalid filename. Expected .zip or .json.gz file.' } })
     }
     
     const backupPath = join(BACKUP_DIR, safeName)
@@ -2999,7 +3062,8 @@ app.get('/api/backup/download', authMiddleware, (req, res) => {
       return res.status(404).json({ ok: false, error: { message: 'Backup not found' } })
     }
     
-    res.setHeader('Content-Type', 'application/gzip')
+    const contentType = filename.endsWith('.zip') ? 'application/zip' : 'application/gzip'
+    res.setHeader('Content-Type', contentType)
     res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`)
     
     const stream = createReadStream(backupPath)
