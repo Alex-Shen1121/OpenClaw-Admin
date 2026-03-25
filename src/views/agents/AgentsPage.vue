@@ -651,17 +651,11 @@ function formatTokenTotalK(total: number): string {
 }
 
 /**
- * Page initialization - load initial data.
- * The agent store will be automatically refreshing in the background
- * thanks to the initialize() call in App.vue, which handles real-time
- * dynamic agent detection from plugins like wecom.
+ * Page initialization - load initial data on demand.
  */
 onMounted(() => {
   console.log("[AgentsPage] Mounted - loading initial data");
   loadData();
-  console.log(
-    "[AgentsPage] Note: Agent list is auto-refreshing in background (every 10s) to detect dynamic agents from plugins",
-  );
 });
 </script>
 

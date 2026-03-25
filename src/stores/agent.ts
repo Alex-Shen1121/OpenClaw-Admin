@@ -19,6 +19,8 @@ export const useAgentStore = defineStore("agent", () => {
   const lastUpdatedAt = ref<number | null>(null);
   const models = ref<ModelInfo[]>([]);
   let refreshInterval: ReturnType<typeof setInterval> | null = null;
+  let initialized = false;
+  const eventUnsubscribes: Array<() => void> = [];
   const AUTO_REFRESH_INTERVAL_MS = 10000; // 10 seconds
 
   const wsStore = useWebSocketStore();
@@ -574,43 +576,60 @@ export const useAgentStore = defineStore("agent", () => {
     }
   }
 
+  function cleanupEventListeners(): void {
+    while (eventUnsubscribes.length > 0) {
+      const unsubscribe = eventUnsubscribes.pop();
+      unsubscribe?.();
+    }
+  }
+
   /**
    * Setup WebSocket event listeners for agent lifecycle events.
    * This enables real-time detection of dynamically created/deleted agents.
    */
   function setupEventListeners(): void {
+    if (eventUnsubscribes.length > 0) {
+      return;
+    }
+
     // Listen for agent creation events (if supported by Gateway)
-    wsStore.subscribe("agent.created", (agentId: unknown) => {
-      console.log("[AgentStore] Agent created event:", agentId);
-      fetchAgents().catch((e) => {
-        console.warn(
-          "[AgentStore] Failed to refresh agents on creation event:",
-          e?.message || String(e),
-        );
-      });
-    });
+    eventUnsubscribes.push(
+      wsStore.subscribe("agent.created", (agentId: unknown) => {
+        console.log("[AgentStore] Agent created event:", agentId);
+        fetchAgents().catch((e) => {
+          console.warn(
+            "[AgentStore] Failed to refresh agents on creation event:",
+            e?.message || String(e),
+          );
+        });
+      }),
+    );
 
     // Listen for agent deletion events (if supported by Gateway)
-    wsStore.subscribe("agent.deleted", (agentId: unknown) => {
-      console.log("[AgentStore] Agent deleted event:", agentId);
-      fetchAgents().catch((e) => {
-        console.warn(
-          "[AgentStore] Failed to refresh agents on deletion event:",
-          e?.message || String(e),
-        );
-      });
-    });
+    eventUnsubscribes.push(
+      wsStore.subscribe("agent.deleted", (agentId: unknown) => {
+        console.log("[AgentStore] Agent deleted event:", agentId);
+        fetchAgents().catch((e) => {
+          console.warn(
+            "[AgentStore] Failed to refresh agents on deletion event:",
+            e?.message || String(e),
+          );
+        });
+      }),
+    );
 
     // As a fallback, also listen for generic agent update events
-    wsStore.subscribe("agents.updated", () => {
-      console.log("[AgentStore] Agents updated event received");
-      fetchAgents().catch((e) => {
-        console.warn(
-          "[AgentStore] Failed to refresh agents on update event:",
-          e?.message || String(e),
-        );
-      });
-    });
+    eventUnsubscribes.push(
+      wsStore.subscribe("agents.updated", () => {
+        console.log("[AgentStore] Agents updated event received");
+        fetchAgents().catch((e) => {
+          console.warn(
+            "[AgentStore] Failed to refresh agents on update event:",
+            e?.message || String(e),
+          );
+        });
+      }),
+    );
 
     console.log("[AgentStore] Event listeners setup complete");
   }
@@ -620,8 +639,13 @@ export const useAgentStore = defineStore("agent", () => {
    * Should be called once during app initialization.
    */
   async function initialize(): Promise<void> {
+    if (initialized) {
+      return;
+    }
+
     console.log("[AgentStore] Initializing...");
     try {
+      initialized = true;
       // Initial fetch
       await fetchAgents();
       await fetchModels();
@@ -629,11 +653,10 @@ export const useAgentStore = defineStore("agent", () => {
       // Setup event listeners for dynamic agent detection
       setupEventListeners();
 
-      // Start periodic refresh as a fallback mechanism
-      startAutoRefresh(AUTO_REFRESH_INTERVAL_MS);
-
       console.log("[AgentStore] Initialization complete");
     } catch (e) {
+      initialized = false;
+      cleanupEventListeners();
       console.error("[AgentStore] Initialization failed:", e);
       throw e;
     }
@@ -662,6 +685,7 @@ export const useAgentStore = defineStore("agent", () => {
     getAgentStats,
     startAutoRefresh,
     stopAutoRefresh,
+    cleanupEventListeners,
     setupEventListeners,
     initialize,
   };
