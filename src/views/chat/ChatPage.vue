@@ -2476,8 +2476,13 @@ onMounted(async () => {
   }, 1000)
 
   loadQuickReplies()
-  void configStore.fetchConfig()
-  void skillStore.fetchSkills()
+
+  // Fire off config, skills, and sessions concurrently — do not await before resolving session key
+  const bgPromises = [
+    configStore.fetchConfig(),
+    skillStore.fetchSkills(),
+    sessionStore.fetchSessions(),
+  ]
 
   eventCleanups.push(
     wsStore.subscribe('event', (evt: unknown) => {
@@ -2507,7 +2512,9 @@ onMounted(async () => {
     })
   )
 
-  await sessionStore.fetchSessions()
+  // Wait for sessions before resolving session key — critical path
+  await bgPromises[2]
+
   const routeSessionKey = normalizeSessionSelectValue(
     Array.isArray(route.query.session) ? route.query.session[0] : (route.query.session as string | number | null)
   )
@@ -2528,7 +2535,10 @@ onMounted(async () => {
     sessionKeyInput.value = firstSession.key
   }
 
+  // loadHistoryForKey already fires fetchSessionTokenUsage — both run in parallel
   await loadHistoryForKey(ensureSessionKey(), { force: true })
+
+  // Let config and skills continue loading in background without blocking UI
 })
 
 onUnmounted(() => {
