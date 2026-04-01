@@ -9,7 +9,6 @@ import {
   NTag,
   NIcon,
   NButton,
-  NSpin,
   NAlert,
   NStatistic,
   NAvatar,
@@ -57,6 +56,7 @@ import OfficeScene3D from '@/components/office/OfficeScene3D.vue'
 import OfficeWorkspace from '@/components/office/OfficeWorkspace.vue'
 import AgentChatPanel from '@/components/office/AgentChatPanel.vue'
 import ScenarioManagementPanel from '@/components/office/ScenarioManagementPanel.vue'
+import AsyncSection from '@/components/common/AsyncSection.vue'
 
 const { t } = useI18n()
 const wsStore = useWebSocketStore()
@@ -77,7 +77,11 @@ const { width: sidebarWidth, isResizing: isSidebarResizing } = useResizable(side
   direction: 'left',
 })
 
-const loading = computed(() => officeStore.loading)
+// Per-module loading — each module independently controls its own loading state.
+// No single store-level loading that blocks the whole page.
+const agentsLoading = computed(() => agentStore.loading)
+const sessionsLoading = computed(() => sessionStore.loading)
+
 const error = computed(() => officeStore.error)
 const agents = computed(() => officeStore.officeAgents)
 const selectedAgentId = computed(() => officeStore.selectedAgentId)
@@ -585,7 +589,7 @@ watch(
             <template #icon><NIcon :component="AddOutline" /></template>
             {{ t('pages.office.createScenario') }}
           </NButton>
-          <NButton size="small" class="app-toolbar-btn app-toolbar-btn--refresh" :loading="loading" @click="loadData">
+          <NButton size="small" class="app-toolbar-btn app-toolbar-btn--refresh" @click="loadData">
             <template #icon><NIcon :component="RefreshOutline" /></template>
             {{ t('common.refresh') }}
           </NButton>
@@ -600,8 +604,8 @@ watch(
         {{ t('pages.office.subtitle') }}
       </NText>
 
-      <NSpin :show="loading">
-        <div class="office-layout">
+      <!-- Each module renders independently — no full-page loading blocking -->
+      <div class="office-layout">
           <div class="office-main">
             <div class="office-header">
               <NSpace align="center" :size="8">
@@ -818,7 +822,6 @@ watch(
             </div>
           </div>
         </div>
-      </NSpin>
     </NCard>
 
     <ScenarioWizard />
