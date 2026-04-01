@@ -211,12 +211,13 @@ export const useSessionStore = defineStore('session', () => {
       idempotencyKey,
     })
 
+    // Fire label patch and fetchSessions concurrently — no artificial 1500ms wait
+    const bgOps: Promise<unknown>[] = []
     if (params.label) {
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      await wsStore.rpc.patchSession({ sessionKey, label: params.label })
+      bgOps.push(wsStore.rpc.patchSession({ sessionKey, label: params.label }))
     }
-
-    await fetchSessions()
+    bgOps.push(fetchSessions())
+    await Promise.all(bgOps)
     return sessionKey
   }
 
