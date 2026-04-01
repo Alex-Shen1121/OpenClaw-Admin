@@ -2,6 +2,7 @@ import { ref, computed } from "vue";
 import { defineStore } from "pinia";
 import { useWebSocketStore } from "./websocket";
 import { useSessionStore } from "./session";
+import { useRpcSafe } from "@/composables/useRpcSafe";
 import type {
   AgentInfo,
   AgentsListResult,
@@ -25,6 +26,7 @@ export const useAgentStore = defineStore("agent", () => {
 
   const wsStore = useWebSocketStore();
   const sessionStore = useSessionStore();
+  const rpc = useRpcSafe();
 
   const methodUnknown = computed(() => wsStore.gatewayMethods.length === 0);
   const supportsAgents = computed(
@@ -104,7 +106,11 @@ export const useAgentStore = defineStore("agent", () => {
     loading.value = true;
     error.value = "";
     try {
-      const result = await wsStore.rpc.listAgents();
+      const result = await rpc.call(() => wsStore.rpc.listAgents(), {
+        label: "listAgents",
+        timeout: 12000,
+        retries: 1,
+      });
       const baseAgents = result.agents || [];
       agents.value = await mergeRuntimeSessionAgents(baseAgents);
       defaultAgentId.value = result.defaultId || "main";
@@ -119,7 +125,11 @@ export const useAgentStore = defineStore("agent", () => {
 
   async function fetchModels() {
     try {
-      models.value = await wsStore.rpc.listModels();
+      models.value = await rpc.call(() => wsStore.rpc.listModels(), {
+        label: "listModels",
+        timeout: 10000,
+        retries: 0,
+      });
     } catch {
       models.value = [];
     }
