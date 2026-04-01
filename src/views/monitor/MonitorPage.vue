@@ -33,6 +33,7 @@ import {
 } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 import { useWebSocketStore } from '@/stores/websocket'
+import { useRpcSafe } from '@/composables/useRpcSafe'
 import { formatDate, formatRelativeTime } from '@/utils/format'
 import type {
   DeviceNode,
@@ -75,6 +76,7 @@ const LOG_BUFFER_LIMIT = 2000
 const message = useMessage()
 const dialog = useDialog()
 const wsStore = useWebSocketStore()
+const rpc = useRpcSafe()
 const { t } = useI18n()
 
 const activeTab = ref<OpsTab>('presence')
@@ -399,7 +401,9 @@ async function loadNodes() {
   if (nodesLoading.value) return
   nodesLoading.value = true
   try {
-    nodes.value = await wsStore.rpc.listNodes()
+    nodes.value = await rpc.call(() => wsStore.rpc.listNodes(), {
+      label: 'listNodes', timeout: 10000, retries: 0,
+    })
   } catch {
     nodes.value = []
   } finally {
@@ -421,7 +425,10 @@ async function loadHealthStatus(opts?: { probe?: boolean }) {
     healthError.value = methodNotReadyLabel('health')
   } else {
     try {
-      healthSnapshot.value = await wsStore.rpc.getHealth({ probe: wantsProbe })
+      healthSnapshot.value = await rpc.call(
+        () => wsStore.rpc.getHealth({ probe: wantsProbe }),
+        { label: 'getHealth', timeout: 15000, retries: 0 }
+      )
       updated = true
       if (wantsProbe) {
         diagLastProbeAt.value = Date.now()
@@ -435,7 +442,9 @@ async function loadHealthStatus(opts?: { probe?: boolean }) {
     statusError.value = methodNotReadyLabel('status')
   } else {
     try {
-      statusSnapshot.value = await wsStore.rpc.getStatus()
+      statusSnapshot.value = await rpc.call(() => wsStore.rpc.getStatus(), {
+        label: 'getStatus', timeout: 12000, retries: 0,
+      })
       updated = true
     } catch (error) {
       statusError.value = asErrorMessage(error, t('pages.monitor.errors.statusFailed'))
@@ -458,7 +467,9 @@ async function loadPresence(quiet = false) {
   if (!quiet) presenceLoading.value = true
   presenceError.value = ''
   try {
-    presenceEntries.value = await wsStore.rpc.getSystemPresence()
+    presenceEntries.value = await rpc.call(() => wsStore.rpc.getSystemPresence(), {
+      label: 'getSystemPresence', timeout: 12000, retries: 1,
+    })
     presenceLastUpdatedAt.value = Date.now()
   } catch (error) {
     presenceError.value = asErrorMessage(error, t('pages.monitor.errors.presenceFailed'))
@@ -477,11 +488,15 @@ async function loadLogs(opts?: { reset?: boolean; quiet?: boolean }) {
   if (!opts?.quiet) logsLoading.value = true
   logsError.value = ''
   try {
-    const result = await wsStore.rpc.tailLogs({
-      cursor: opts?.reset ? undefined : (logsCursor.value ?? undefined),
-      limit: Math.max(1, Math.floor(logsLimit.value || 500)),
-      maxBytes: Math.max(1, Math.floor(logsMaxBytes.value || 250000)),
-    })
+    const result = await rpc.call(
+      () =>
+        wsStore.rpc.tailLogs({
+          cursor: opts?.reset ? undefined : (logsCursor.value ?? undefined),
+          limit: Math.max(1, Math.floor(logsLimit.value || 500)),
+          maxBytes: Math.max(1, Math.floor(logsMaxBytes.value || 250000)),
+        }),
+      { label: 'tailLogs', timeout: 20000, retries: 0 }
+    )
 
     const parsed = result.lines.map((line) => parseLogLine(line))
     const shouldReset = Boolean(opts?.reset || result.reset || logsCursor.value == null)
@@ -552,9 +567,13 @@ async function loadApprovals() {
   approvalsLoading.value = true
   approvalsError.value = ''
   try {
-    const snapshot = await wsStore.rpc.getExecApprovals({
-      nodeId: approvalsTargetKind.value === 'node' ? approvalsTargetNodeId.value : undefined,
-    })
+    const snapshot = await rpc.call(
+      () =>
+        wsStore.rpc.getExecApprovals({
+          nodeId: approvalsTargetKind.value === 'node' ? approvalsTargetNodeId.value : undefined,
+        }),
+      { label: 'getExecApprovals', timeout: 10000, retries: 0 }
+    )
     applyApprovalsSnapshot(snapshot)
   } catch (error) {
     approvalsError.value = asErrorMessage(error, t('pages.monitor.approvals.errors.loadFailed'))
@@ -577,11 +596,15 @@ async function saveApprovals() {
   approvalsError.value = ''
   try {
     const form = ensureApprovalsForm()
-    const snapshot = await wsStore.rpc.setExecApprovals({
-      file: cloneJson(form),
-      baseHash: approvalsSnapshot.value.hash,
-      nodeId: approvalsTargetKind.value === 'node' ? approvalsTargetNodeId.value : undefined,
-    })
+    const snapshot = await rpc.call(
+      () =>
+        wsStore.rpc.setExecApprovals({
+          file: cloneJson(form),
+          baseHash: approvalsSnapshot.value.hash,
+          nodeId: approvalsTargetKind.value === 'node' ? approvalsTargetNodeId.value : undefined,
+        }),
+      { label: 'setExecApprovals', timeout: 12000, retries: 1 }
+    )
     applyApprovalsSnapshot(snapshot)
     message.success(t('pages.monitor.approvals.saved'))
   } catch (error) {
@@ -697,12 +720,16 @@ async function runUpdate() {
   updateRunning.value = true
   updateError.value = ''
   try {
-    const response = await wsStore.rpc.runUpdate({
-      sessionKey: updateSessionKey.value.trim() || undefined,
-      note: updateNote.value.trim() || undefined,
-      restartDelayMs: typeof updateRestartDelayMs.value === 'number' ? updateRestartDelayMs.value : undefined,
-      timeoutMs: typeof updateTimeoutMs.value === 'number' ? updateTimeoutMs.value : undefined,
-    })
+    const response = await rpc.call(
+      () =>
+        wsStore.rpc.runUpdate({
+          sessionKey: updateSessionKey.value.trim() || undefined,
+          note: updateNote.value.trim() || undefined,
+          restartDelayMs: typeof updateRestartDelayMs.value === 'number' ? updateRestartDelayMs.value : undefined,
+          timeoutMs: typeof updateTimeoutMs.value === 'number' ? updateTimeoutMs.value : undefined,
+        }),
+      { label: 'runUpdate', timeout: 60000, retries: 0 }
+    )
     updateResponse.value = response
     updateLastTriggeredAt.value = Date.now()
 
