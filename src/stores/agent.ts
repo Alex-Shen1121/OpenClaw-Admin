@@ -151,10 +151,7 @@ export const useAgentStore = defineStore("agent", () => {
 
     if (agentName !== agentId) {
       const maxRetries = 10;
-      const initialDelay = 1000;
       let updated = false;
-
-      await new Promise((resolve) => setTimeout(resolve, initialDelay));
 
       for (let i = 0; i < maxRetries; i++) {
         try {
@@ -207,11 +204,8 @@ export const useAgentStore = defineStore("agent", () => {
   }) {
     if (params.name !== undefined) {
       const maxNameRetries = 10;
-      const initialDelay = 500;
       const nameRetryDelay = 500;
       let nameUpdated = false;
-
-      await new Promise((resolve) => setTimeout(resolve, initialDelay));
 
       for (let attempt = 0; attempt < maxNameRetries; attempt++) {
         try {
@@ -348,11 +342,8 @@ export const useAgentStore = defineStore("agent", () => {
     for (const params of paramsList) {
       if (params.name !== undefined) {
         const maxNameRetries = 10;
-        const initialDelay = 500;
         const nameRetryDelay = 500;
         let nameUpdated = false;
-
-        await new Promise((resolve) => setTimeout(resolve, initialDelay));
 
         for (let attempt = 0; attempt < maxNameRetries; attempt++) {
           try {
