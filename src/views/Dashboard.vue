@@ -524,7 +524,7 @@ async function fetchUsageData() {
 }
 
 onMounted(async () => {
-  applyRangePreset('7d', false)
+  applyRangePreset('today', false)
   retryAfterFirstConnect = wsStore.state !== 'connected'
 
   cleanupStateChange = wsStore.subscribe('stateChange', () => {
