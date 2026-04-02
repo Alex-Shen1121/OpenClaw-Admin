@@ -14,7 +14,6 @@ import {
   NInputNumber,
   NSelect,
   NDynamicTags,
-  NSpin,
   NAlert,
   NCode,
   NScrollbar,
@@ -23,6 +22,7 @@ import {
 import { GitNetworkOutline, RefreshOutline, SaveOutline } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 import { useConfigStore } from '@/stores/config'
+import AsyncSection from '@/components/common/AsyncSection.vue'
 import type { ConfigPatch } from '@/api/types'
 
 const configStore = useConfigStore()
@@ -197,7 +197,7 @@ function goToChannels() {
 </script>
 
 <template>
-  <NSpin :show="configStore.loading">
+  <AsyncSection :loading="configStore.loading" error-title="Failed to load config" @retry="configStore.fetchConfig()">
     <NSpace vertical :size="16">
       <NCard :title="t('pages.config.title')" class="app-card">
         <template #header-extra>
@@ -308,5 +308,5 @@ function goToChannels() {
         </NTabs>
       </NCard>
     </NSpace>
-  </NSpin>
+  </AsyncSection>
 </template>

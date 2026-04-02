@@ -12,12 +12,12 @@ import {
   NText,
   NIcon,
   NInput,
-  NSpin,
 } from 'naive-ui'
 import { RefreshOutline, SearchOutline } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 import { useSkillStore } from '@/stores/skill'
 import type { Skill } from '@/api/types'
+import AsyncSection from '@/components/common/AsyncSection.vue'
 
 const skillStore = useSkillStore()
 const { t } = useI18n()
@@ -169,7 +169,10 @@ const pluginGroups = computed(() => {
         </NInput>
       </NSpace>
 
-      <NSpin :show="skillStore.loading" style="margin-top: 16px;">
+      <AsyncSection :loading="skillStore.loading" style="margin-top: 16px;"
+        error-title="Failed to load skills"
+        @retry="skillStore.fetchSkills()"
+      >
         <NSpace vertical :size="14">
           <NCard
             v-for="group in pluginGroups"
@@ -249,7 +252,7 @@ const pluginGroups = computed(() => {
         >
           {{ t('pages.skills.noMatches') }}
         </div>
-      </NSpin>
+      </AsyncSection>
     </NCard>
   </NSpace>
 </template>

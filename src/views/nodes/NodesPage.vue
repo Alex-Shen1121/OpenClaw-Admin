@@ -9,7 +9,6 @@ import {
   NTag,
   NText,
   NIcon,
-  NSpin,
   NModal,
   NInput,
   useMessage,
@@ -19,6 +18,7 @@ import { useI18n } from 'vue-i18n'
 import { useNodeStore } from '@/stores/node'
 import { formatRelativeTime } from '@/utils/format'
 import type { DeviceNode } from '@/api/types'
+import AsyncSection from '@/components/common/AsyncSection.vue'
 
 const nodeStore = useNodeStore()
 const message = useMessage()
@@ -74,7 +74,7 @@ async function confirmPairing() {
         </NButton>
       </template>
 
-      <NSpin :show="nodeStore.loading">
+      <AsyncSection :loading="nodeStore.loading" error-title="Failed to load nodes" @retry="nodeStore.fetchNodes()">
         <NGrid cols="1 s:2 m:3" responsive="screen" :x-gap="16" :y-gap="16">
           <NGridItem v-for="node in nodeStore.nodes" :key="node.id">
             <NCard :bordered="true" style="border-radius: var(--radius);" hoverable>
@@ -134,7 +134,7 @@ async function confirmPairing() {
         >
           {{ t('pages.nodes.empty') }}
         </div>
-      </NSpin>
+      </AsyncSection>
     </NCard>
 
     <NModal
