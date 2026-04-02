@@ -12,7 +12,6 @@ import {
   NInput,
   NInputGroup,
   NSpace,
-  NSpin,
   NSwitch,
   NTag,
   NText,
@@ -28,6 +27,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { faQq } from '@fortawesome/free-brands-svg-icons'
 import { useI18n } from 'vue-i18n'
+import AsyncSection from '@/components/common/AsyncSection.vue'
 import {
   faCircleCheck,
   faBuilding,
@@ -364,7 +364,9 @@ onMounted(() => {
           {{ channelStore.lastError }}
         </NAlert>
 
-        <NSpin :show="channelStore.loading || channelStore.applying">
+        <AsyncSection :loading="channelStore.loading || channelStore.applying"
+          error-title="Failed to load channels"
+          @retry="channelStore.refreshRuntimeChannels()">
           <NCollapse v-model:expanded-names="expandedChannelKeys">
             <NCollapseItem
               v-for="card in channelCards"
@@ -528,7 +530,7 @@ onMounted(() => {
               </NSpace>
             </NCollapseItem>
           </NCollapse>
-        </NSpin>
+        </AsyncSection>
       </NSpace>
     </NCard>
   </NSpace>
