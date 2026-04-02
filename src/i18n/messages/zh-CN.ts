@@ -726,6 +726,9 @@ export default {
           minimax: {
             name: 'MiniMax Coding',
           },
+          bailian: {
+            name: '阿里云百炼 Coding',
+          },
         },
         messages: {
           keyRequired: '请先填写 API Key',

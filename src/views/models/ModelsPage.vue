@@ -69,7 +69,7 @@ const modelInputTypeOptions = [
 
 const DEFAULT_MODEL_INPUT_TYPES: ModelInputType[] = ['text']
 
-type QuickProviderKey = 'zhipu' | 'kimi' | 'minimax'
+type QuickProviderKey = 'zhipu' | 'kimi' | 'minimax' | 'bailian'
 
 type QuickProviderPreset = {
   key: QuickProviderKey
@@ -113,6 +113,16 @@ const QUICK_PROVIDER_PRESETS: Record<QuickProviderKey, QuickProviderPreset> = {
     input: ['text'],
     docsUrl: 'https://platform.minimaxi.com/docs/api-reference/text-openai-api',
   },
+  bailian: {
+    key: 'bailian',
+    providerId: 'bailian',
+    api: 'openai-completions',
+    baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
+    modelId: 'qwen3.5-plus',
+    modelName: 'qwen3.5-plus',
+    input: ['text', 'image'],
+    docsUrl: 'https://help.aliyun.com/zh/model-studio/coding-plan',
+  },
 }
 
 const quickProviderList = Object.values(QUICK_PROVIDER_PRESETS)
@@ -120,11 +130,13 @@ const quickProviderApiKeys = reactive<Record<QuickProviderKey, string>>({
   zhipu: '',
   kimi: '',
   minimax: '',
+  bailian: '',
 })
 const quickProviderSaving = reactive<Record<QuickProviderKey, boolean>>({
   zhipu: false,
   kimi: false,
   minimax: false,
+  bailian: false,
 })
 
 const providerForm = reactive({
@@ -2088,7 +2100,30 @@ async function handleQuickProviderSetup(key: QuickProviderKey) {
   try {
     const providerId = normalizeProviderId(preset.providerId)
     const providerPath = `models.providers.${providerId}`
-    const modelIds = [preset.modelId]
+    
+    // 为阿里云百炼提供完整模型列表
+    let modelIds: string[]
+    let modelsConfig: any[]
+    
+    if (key === 'bailian') {
+      // 阿里云百炼完整模型列表
+      const bailianModels = [
+        { id: 'qwen3.5-plus', name: 'qwen3.5-plus', reasoning: false, input: ['text', 'image'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 1000000, maxTokens: 65536, compat: { thinkingFormat: 'qwen' } },
+        { id: 'qwen3-max-2026-01-23', name: 'qwen3-max-2026-01-23', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 262144, maxTokens: 65536, compat: { thinkingFormat: 'qwen' } },
+        { id: 'qwen3-coder-next', name: 'qwen3-coder-next', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 262144, maxTokens: 65536 },
+        { id: 'qwen3-coder-plus', name: 'qwen3-coder-plus', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 1000000, maxTokens: 65536 },
+        { id: 'MiniMax-M2.5', name: 'MiniMax-M2.5', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 196608, maxTokens: 32768 },
+        { id: 'glm-5', name: 'glm-5', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 202752, maxTokens: 16384, compat: { thinkingFormat: 'qwen' } },
+        { id: 'glm-4.7', name: 'glm-4.7', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 202752, maxTokens: 16384, compat: { thinkingFormat: 'qwen' } },
+        { id: 'kimi-k2.5', name: 'kimi-k2.5', reasoning: false, input: ['text', 'image'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 262144, maxTokens: 32768, compat: { thinkingFormat: 'qwen' } },
+      ]
+      modelIds = bailianModels.map(model => model.id)
+      modelsConfig = bailianModels
+    } else {
+      // 其他提供商保持现有行为
+      modelIds = [preset.modelId]
+      modelsConfig = modelIds.map((id) => ({ id, name: preset.modelName || id, input: [...preset.input] }))
+    }
 
     const patches: ConfigPatch[] = [
       { path: 'models.mode', value: 'merge' },
@@ -2097,7 +2132,7 @@ async function handleQuickProviderSetup(key: QuickProviderKey) {
       { path: `${providerPath}.apiKey`, value: apiKey },
       {
         path: `${providerPath}.models`,
-        value: modelIds.map((id) => ({ id, name: preset.modelName || id, input: [...preset.input] })),
+        value: modelsConfig,
       },
     ]
 
