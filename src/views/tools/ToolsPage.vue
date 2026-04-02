@@ -8,7 +8,6 @@ import {
   NTag,
   NIcon,
   NInput,
-  NSpin,
 } from 'naive-ui'
 import { RefreshOutline, SearchOutline } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
