@@ -15,7 +15,6 @@ import {
   NPopconfirm,
   NSelect,
   NSpace,
-  NSpin,
   NSwitch,
   NTag,
   NText,
@@ -32,6 +31,7 @@ import { useSessionStore } from '@/stores/session'
 import { useSkillStore } from '@/stores/skill'
 import { useWebSocketStore } from '@/stores/websocket'
 import { useRpcSafe } from '@/composables/useRpcSafe'
+import AsyncSection from '@/components/common/AsyncSection.vue'
 import { formatDate, formatRelativeTime, parseSessionKey, truncate } from '@/utils/format'
 import { renderSimpleMarkdown } from '@/utils/markdown'
 import type { AgentInstance, ChatMessage, ChatMessageContent, SessionsUsageSession, Skill } from '@/api/types'
@@ -2764,7 +2764,7 @@ async function handleSend() {
               </NSpace>
 
               <div class="chat-transcript-shell">
-                <NSpin :show="transcriptLoading" class="chat-transcript-spin">
+                <AsyncSection :loading="transcriptLoading" class="chat-transcript-spin">
                   <div ref="transcriptRef" class="chat-transcript" @scroll="handleTranscriptScroll">
                     <template v-if="renderedMessages.length">
                       <div
@@ -2987,7 +2987,7 @@ async function handleSend() {
                       style="padding: 72px 0;"
                     />
                   </div>
-                </NSpin>
+                </AsyncSection>
               </div>
             </NCard>
 
