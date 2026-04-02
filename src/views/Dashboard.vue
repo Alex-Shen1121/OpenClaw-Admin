@@ -855,13 +855,13 @@ function viewModels() {
       </NAlert>
     </NCard>
 
-    <!-- Stat Cards — AsyncSection provides skeleton / error / retry per module -->
-    <!-- Skeleton: only when statsLoading=true -->
+    <!-- Stat Cards — AsyncSection renders skeleton slot when loading, default slot when ready -->
     <AsyncSection
-      v-if="statsLoading"
-      :loading="false"
-      :show-skeleton="true"
+      :loading="statsLoading"
+      :error="statsError"
+      error-label="统计信息加载失败"
       skeleton-height="88px"
+      @retry="retryStats"
     >
       <template #skeleton>
         <NGrid cols="1 s:2 m:3 l:5" responsive="screen" :x-gap="12" :y-gap="12">
@@ -873,16 +873,6 @@ function viewModels() {
           </NGridItem>
         </NGrid>
       </template>
-    </AsyncSection>
-
-    <!-- Content: when statsLoading=false (handles error/empty internally) -->
-    <AsyncSection
-      v-else
-      :loading="false"
-      :error="statsError"
-      error-label="统计信息加载失败"
-      @retry="retryStats"
-    >
       <NGrid cols="1 s:2 m:3 l:5" responsive="screen" :x-gap="12" :y-gap="12">
         <NGridItem>
           <StatCard
@@ -928,12 +918,12 @@ function viewModels() {
     </AsyncSection>
 
     <!-- KPIs Card — AsyncSection with module-level loading -->
-    <!-- Skeleton: only when kpisLoading=true -->
     <AsyncSection
-      v-if="kpisLoading"
-      :loading="false"
-      :show-skeleton="true"
+      :loading="kpisLoading"
+      :error="usageError"
+      error-label="使用量数据加载失败"
       skeleton-height="110px"
+      @retry="retryUsage"
     >
       <template #skeleton>
         <NCard :title="t('pages.dashboard.cards.kpis')" class="dashboard-card">
@@ -946,16 +936,6 @@ function viewModels() {
           </div>
         </NCard>
       </template>
-    </AsyncSection>
-
-    <!-- Content: when kpisLoading=false (handles error/empty internally) -->
-    <AsyncSection
-      v-else
-      :loading="false"
-      :error="usageError"
-      error-label="使用量数据加载失败"
-      @retry="retryUsage"
-    >
       <NCard :title="t('pages.dashboard.cards.kpis')" class="dashboard-card">
         <div class="kpi-grid">
           <div v-for="kpi in usageKpis" :key="kpi.key" class="kpi-card">
@@ -970,12 +950,13 @@ function viewModels() {
     <!-- Usage Trend + Structure Grid — AsyncSection for each module -->
     <NGrid cols="1 l:3" responsive="screen" :x-gap="12" :y-gap="12">
       <NGridItem :span="2" class="usage-trend-item">
-        <!-- Skeleton: only rendered when trendLoading=true -->
+        <!-- Trend chart — single AsyncSection renders skeleton or content based on loading state -->
         <AsyncSection
-          v-if="trendLoading"
-          :loading="false"
-          :show-skeleton="true"
+          :loading="trendLoading"
+          :error="usageError"
+          error-label="趋势数据加载失败"
           skeleton-height="280px"
+          @retry="retryUsage"
         >
           <template #skeleton>
             <NCard :title="t('pages.dashboard.cards.trend')" class="dashboard-card usage-trend-card">
@@ -984,16 +965,6 @@ function viewModels() {
               </div>
             </NCard>
           </template>
-        </AsyncSection>
-
-        <!-- Content: rendered when trendLoading=false (handles error/empty internally) -->
-        <AsyncSection
-          v-else
-          :loading="false"
-          :error="usageError"
-          error-label="趋势数据加载失败"
-          @retry="retryUsage"
-        >
           <NCard :title="t('pages.dashboard.cards.trend')" class="dashboard-card usage-trend-card">
             <template #header-extra>
               <NSpace :size="8" align="center">
@@ -1080,12 +1051,13 @@ function viewModels() {
       </NGridItem>
 
       <NGridItem :span="1" class="usage-structure-item">
-        <!-- Skeleton: only rendered when structureLoading=true -->
+        <!-- Structure card — single AsyncSection renders skeleton or content based on loading state -->
         <AsyncSection
-          v-if="structureLoading"
-          :loading="false"
-          :show-skeleton="true"
+          :loading="structureLoading"
+          :error="usageError"
+          error-label="结构数据加载失败"
           skeleton-height="200px"
+          @retry="retryUsage"
         >
           <template #skeleton>
             <NCard :title="t('pages.dashboard.cards.structure')" class="dashboard-card usage-structure-card">
@@ -1107,16 +1079,6 @@ function viewModels() {
               </div>
             </NCard>
           </template>
-        </AsyncSection>
-
-        <!-- Content: rendered when structureLoading=false (handles error/empty internally) -->
-        <AsyncSection
-          v-else
-          :loading="false"
-          :error="usageError"
-          error-label="结构数据加载失败"
-          @retry="retryUsage"
-        >
           <NCard :title="t('pages.dashboard.cards.structure')" class="dashboard-card usage-structure-card">
             <NSpace justify="space-between" align="center" style="margin-bottom: 8px;">
               <NText depth="3">{{ usageMode === 'tokens' ? t('pages.dashboard.usage.totalTokens') : t('pages.dashboard.usage.totalCost') }}</NText>
@@ -1153,13 +1115,13 @@ function viewModels() {
       </NGridItem>
     </NGrid>
 
-    <!-- Top Models / Providers / Tools — AsyncSection with retry -->
-    <!-- Skeleton: only rendered when topLoading=true -->
+    <!-- Top Models / Providers / Tools — single AsyncSection renders skeleton or content based on loading state -->
     <AsyncSection
-      v-if="topLoading"
-      :loading="false"
-      :show-skeleton="true"
+      :loading="topLoading"
+      :error="usageError"
+      error-label="TOP 数据加载失败"
       skeleton-height="220px"
+      @retry="retryUsage"
     >
       <template #skeleton>
         <NCard :title="t('pages.dashboard.cards.top')" class="dashboard-card">
@@ -1183,16 +1145,6 @@ function viewModels() {
           </NGrid>
         </NCard>
       </template>
-    </AsyncSection>
-
-    <!-- Content: rendered when topLoading=false (handles error/empty internally) -->
-    <AsyncSection
-      v-else
-      :loading="false"
-      :error="usageError"
-      error-label="TOP 数据加载失败"
-      @retry="retryUsage"
-    >
       <NCard :title="t('pages.dashboard.cards.top')" class="dashboard-card">
         <NGrid cols="1 m:3" responsive="screen" :x-gap="12" :y-gap="12">
           <NGridItem>
