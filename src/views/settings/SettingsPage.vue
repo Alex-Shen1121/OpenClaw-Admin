@@ -10,7 +10,6 @@ import {
   NFormItem,
   NInput,
   NButton,
-  NSpin,
   useMessage,
 } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
@@ -18,10 +17,13 @@ import { useThemeStore, type ThemeMode } from '@/stores/theme'
 import { useWebSocketStore } from '@/stores/websocket'
 import { useAuthStore } from '@/stores/auth'
 import { ConnectionState } from '@/api/types'
+import AsyncSection from '@/components/common/AsyncSection.vue'
+import { useRpcSafe } from '@/composables/useRpcSafe'
 
 const themeStore = useThemeStore()
 const wsStore = useWebSocketStore()
 const authStore = useAuthStore()
+const rpc = useRpcSafe()
 const { t } = useI18n()
 const message = useMessage()
 const appTitle = import.meta.env.VITE_APP_TITLE || 'OpenClaw Admin'
@@ -59,12 +61,17 @@ function handleThemeChange(mode: ThemeMode) {
 async function loadConfig() {
   loading.value = true
   try {
-    const token = authStore.getToken()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
+    const token = authStore.token || localStorage.getItem('auth_token') || ''
     const response = await fetch('/api/config', {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
       },
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
+
     const data = await response.json()
     if (data.ok) {
       configForm.value = {
@@ -125,7 +132,7 @@ onMounted(() => {
     </NCard>
 
     <NCard :title="t('pages.settings.envSettings')" class="app-card">
-      <NSpin :show="loading">
+      <AsyncSection :loading="loading" error-title="Failed to load settings" @retry="loadConfig">
         <NForm label-placement="left" label-width="140" style="max-width: 600px;">
           <NFormItem :label="t('pages.settings.authUsername')">
             <NInput
@@ -176,7 +183,7 @@ onMounted(() => {
             </NSpace>
           </NFormItem>
         </NForm>
-      </NSpin>
+      </AsyncSection>
       
       <NAlert type="info" :bordered="false" style="margin-top: 16px;">
         {{ t('pages.settings.envSettingsHint') }}
