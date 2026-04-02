@@ -1917,7 +1917,7 @@ export class RPCClient {
   private async callWithFallback<T>(
     methods: string[],
     params?: Record<string, unknown>,
-    timeout = 15000
+    timeout = 0
   ): Promise<T> {
     let lastError: unknown
     for (const method of methods) {
@@ -1936,7 +1936,7 @@ export class RPCClient {
   private async callWithMethodAndParamsFallback<T>(
     methods: string[],
     paramsList: Array<Record<string, unknown> | undefined>,
-    timeout = 15000
+    timeout = 0
   ): Promise<T> {
     let lastError: unknown
     for (const params of paramsList) {
@@ -1990,16 +1990,16 @@ export class RPCClient {
     return []
   }
 
-  private call<T>(method: string, params?: Record<string, unknown>, timeout = 15000): Promise<T> {
+  private call<T>(method: string, params?: Record<string, unknown>, timeout = 0): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const id = nextId()
-      let timer: ReturnType<typeof setTimeout>
+      let timer: ReturnType<typeof setTimeout> | null = null
       let settled = false
 
       const cleanup = this.ws.on(`rpc:${id}`, (response: unknown) => {
         if (settled) return
         settled = true
-        clearTimeout(timer)
+        if (timer) clearTimeout(timer)
         cleanup()
         const res = response as RPCResponse<T>
         if (res.ok) {
@@ -2009,12 +2009,14 @@ export class RPCClient {
         }
       })
 
-      timer = setTimeout(() => {
-        if (settled) return
-        settled = true
-        cleanup()
-        reject(new Error(`RPC call "${method}" timed out after ${timeout}ms`))
-      }, timeout)
+      if (timeout > 0) {
+        timer = setTimeout(() => {
+          if (settled) return
+          settled = true
+          cleanup()
+          reject(new Error(`RPC call "${method}" timed out after ${timeout}ms`))
+        }, timeout)
+      }
 
       this.ws.send({ type: 'req', id, method, params }).catch((err) => {
         if (settled) return
