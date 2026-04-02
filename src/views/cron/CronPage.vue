@@ -56,6 +56,7 @@ import type {
 } from '@/api/types'
 import { formatDate, formatRelativeTime, parseSessionKey, truncate } from '@/utils/format'
 import { renderSimpleMarkdown } from '@/utils/markdown'
+import AsyncSection from '@/components/common/AsyncSection.vue'
 
 type ScheduleKind = 'cron' | 'every' | 'at'
 type EveryUnit = 'minutes' | 'hours' | 'days'
@@ -818,7 +819,7 @@ const runColumns = computed<DataTableColumns<CronRunLogEntry>>(() => [
 ])
 
 onMounted(async () => {
-  await Promise.all([
+  await Promise.allSettled([
     cronStore.fetchOverview(),
     modelStore.fetchModels(),
     configStore.fetchConfig(),
@@ -1428,7 +1429,7 @@ function lastRunText(job: CronJob): string {
 }
 
 async function handleRefresh() {
-  await Promise.all([
+  await Promise.allSettled([
     cronStore.fetchOverview(),
     modelStore.fetchModels(),
     configStore.fetchConfig(),
