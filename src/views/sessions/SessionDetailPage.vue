@@ -3,7 +3,6 @@ import { onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NCard,
-  NSpin,
   NSpace,
   NButton,
   NTag,
@@ -17,6 +16,7 @@ import { ArrowBackOutline, RefreshOutline, TrashOutline, DownloadOutline } from 
 import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '@/stores/session'
 import { formatDate, parseSessionKey, downloadJSON } from '@/utils/format'
+import AsyncSection from '@/components/common/AsyncSection.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -95,7 +95,7 @@ function roleLabel(role: string): string {
       <NText depth="3">{{ parsed.peer }}</NText>
     </NSpace>
 
-    <NSpin :show="sessionStore.loading">
+    <AsyncSection :loading="sessionStore.loading" error-title="Failed to load session" @retry="sessionStore.fetchSession(route.params.key as string)">
       <NCard class="app-card">
         <template #header>
           <NSpace align="center">
@@ -175,6 +175,6 @@ function roleLabel(role: string): string {
           </div>
         </NScrollbar>
       </NCard>
-    </NSpin>
+    </AsyncSection>
   </NSpace>
 </template>
