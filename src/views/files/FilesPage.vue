@@ -7,7 +7,6 @@ import {
   NIcon,
   NSpace,
   NEmpty,
-  NSpin,
   NAlert,
   NText,
   NTag,
@@ -30,6 +29,8 @@ import {
   type UploadFileInfo,
   type SelectOption,
 } from 'naive-ui'
+import AsyncSection from '@/components/common/AsyncSection.vue'
+import { useRpcSafe } from '@/composables/useRpcSafe'
 import {
   RefreshOutline,
   FolderOutline,
@@ -97,6 +98,7 @@ const { t } = useI18n()
 const message = useMessage()
 const authStore = useAuthStore()
 const memoryStore = useMemoryStore()
+const rpc = useRpcSafe()
 
 const loading = ref(false)
 const error = ref('')
@@ -497,13 +499,12 @@ async function browsePath(path: string) {
   
   try {
     const url = `/api/files/list?path=${encodeURIComponent(path)}&workspace=${encodeURIComponent(currentWorkspace.value)}`
-    const response = await fetch(url, {
-      headers: getAuthHeaders()
-    })
-    
-    const data = await response.json()
-    
-    if (!response.ok || !data.ok) {
+    const data = await rpc.call(
+      () => fetch(url, { headers: getAuthHeaders() }).then((r) => r.json()),
+      { label: 'listFiles', timeout: 15000, retries: 1 }
+    )
+
+    if (!data.ok) {
       throw new Error(data.error?.message || 'Failed to list files')
     }
     
@@ -572,13 +573,16 @@ async function openPreview(file: FileEntry) {
   previewTab.value = 'preview'
   
   try {
-    const response = await fetch(`/api/files/get?path=${encodeURIComponent(file.path)}&workspace=${encodeURIComponent(currentWorkspace.value)}`, {
-      headers: getAuthHeaders()
-    })
-    
-    const data = await response.json()
-    
-    if (!response.ok || !data.ok) {
+    const data = await rpc.call(
+      () =>
+        fetch(
+          `/api/files/get?path=${encodeURIComponent(file.path)}&workspace=${encodeURIComponent(currentWorkspace.value)}`,
+          { headers: getAuthHeaders() }
+        ).then((r) => r.json()),
+      { label: 'getFileContent', timeout: 15000, retries: 1 }
+    )
+
+    if (!data.ok) {
       throw new Error(data.error?.message || 'Failed to read file')
     }
     
@@ -605,16 +609,19 @@ async function openEditor(file: FileEntry) {
   editedContent.value = ''
   
   try {
-    const response = await fetch(`/api/files/get?path=${encodeURIComponent(file.path)}&workspace=${encodeURIComponent(currentWorkspace.value)}`, {
-      headers: getAuthHeaders()
-    })
-    
-    const data = await response.json()
-    
-    if (!response.ok || !data.ok) {
+    const data = await rpc.call(
+      () =>
+        fetch(
+          `/api/files/get?path=${encodeURIComponent(file.path)}&workspace=${encodeURIComponent(currentWorkspace.value)}`,
+          { headers: getAuthHeaders() }
+        ).then((r) => r.json()),
+      { label: 'getFileForEdit', timeout: 15000, retries: 1 }
+    )
+
+    if (!data.ok) {
       throw new Error(data.error?.message || 'Failed to read file')
     }
-    
+
     fileContent.value = data.file.content || ''
     editedContent.value = fileContent.value
     showEditorModal.value = true
@@ -633,27 +640,30 @@ async function openEditor(file: FileEntry) {
 
 async function saveFile() {
   if (!selectedFile.value) return
-  
+
+  const fileToSave = selectedFile.value
   fileLoading.value = true
   try {
-    console.log('[FilesPage] Saving file:', selectedFile.value.path)
-    
-    const response = await fetch('/api/files/set', {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        path: selectedFile.value.path,
-        content: editedContent.value,
-        workspace: currentWorkspace.value
-      })
-    })
-    
-    const data = await response.json()
-    
-    if (!response.ok || !data.ok) {
+    console.log('[FilesPage] Saving file:', fileToSave.path)
+
+    const data = await rpc.call(
+      () =>
+        fetch('/api/files/set', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            path: fileToSave.path,
+            content: editedContent.value,
+            workspace: currentWorkspace.value,
+          }),
+        }).then((r) => r.json()),
+      { label: 'saveFile', timeout: 30000, retries: 0 }
+    )
+
+    if (!data.ok) {
       throw new Error(data.error?.message || 'Failed to save file')
     }
-    
+
     fileContent.value = editedContent.value
     message.success(t('pages.files.saveSuccess'))
     await browsePath(currentPath.value)
@@ -667,18 +677,21 @@ async function saveFile() {
 
 async function downloadFileDirect(file: FileEntry) {
   try {
-    const response = await fetch(`/api/files/get?path=${encodeURIComponent(file.path)}&workspace=${encodeURIComponent(currentWorkspace.value)}`, {
-      headers: getAuthHeaders()
-    })
-    
-    const data = await response.json()
-    
-    if (!response.ok || !data.ok) {
+    const data = await rpc.call(
+      () =>
+        fetch(
+          `/api/files/get?path=${encodeURIComponent(file.path)}&workspace=${encodeURIComponent(currentWorkspace.value)}`,
+          { headers: getAuthHeaders() }
+        ).then((r) => r.json()),
+      { label: 'getFileForDownload', timeout: 15000, retries: 1 }
+    )
+
+    if (!data.ok) {
       throw new Error(data.error?.message || 'Failed to read file')
     }
-    
+
     const content = data.file.content || ''
-    
+
     if (!content) {
       message.warning(t('pages.files.noContent'))
       return
@@ -727,41 +740,45 @@ async function createEntry() {
     console.log('[FilesPage] Creating:', createType.value, fullPath)
     
     if (createType.value === 'file') {
-      const response = await fetch('/api/files/set', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          path: fullPath,
-          content: '',
-          workspace: currentWorkspace.value
-        })
-      })
-      
-      const data = await response.json()
-      
-      if (!response.ok || !data.ok) {
+      const data = await rpc.call(
+        () =>
+          fetch('/api/files/set', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+              path: fullPath,
+              content: '',
+              workspace: currentWorkspace.value,
+            }),
+          }).then((r) => r.json()),
+        { label: 'createFile', timeout: 15000, retries: 0 }
+      )
+
+      if (!data.ok) {
         throw new Error(data.error?.message || 'Failed to create file')
       }
-      
+
       showCreateModal.value = false
       message.success(t('pages.files.createSuccess'))
       await browsePath(currentPath.value)
     } else {
-      const response = await fetch('/api/files/mkdir', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          path: fullPath,
-          workspace: currentWorkspace.value
-        })
-      })
-      
-      const data = await response.json()
-      
-      if (!response.ok || !data.ok) {
+      const data = await rpc.call(
+        () =>
+          fetch('/api/files/mkdir', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+              path: fullPath,
+              workspace: currentWorkspace.value,
+            }),
+          }).then((r) => r.json()),
+        { label: 'createDir', timeout: 15000, retries: 0 }
+      )
+
+      if (!data.ok) {
         throw new Error(data.error?.message || 'Failed to create directory')
       }
-      
+
       showCreateModal.value = false
       message.success(t('pages.files.createDirSuccess'))
       await browsePath(currentPath.value)
@@ -777,22 +794,24 @@ async function createEntry() {
 async function deleteEntry(file: FileEntry) {
   try {
     console.log('[FilesPage] Deleting:', file.path)
-    
-    const response = await fetch('/api/files/delete', {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        path: file.path,
-        workspace: currentWorkspace.value
-      })
-    })
-    
-    const data = await response.json()
-    
-    if (!response.ok || !data.ok) {
+
+    const data = await rpc.call(
+      () =>
+        fetch('/api/files/delete', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            path: file.path,
+            workspace: currentWorkspace.value,
+          }),
+        }).then((r) => r.json()),
+      { label: 'deleteFile', timeout: 15000, retries: 0 }
+    )
+
+    if (!data.ok) {
       throw new Error(data.error?.message || 'Failed to delete')
     }
-    
+
     if (selectedFile.value?.path === file.path) {
       selectedFile.value = null
       fileContent.value = ''
@@ -825,25 +844,27 @@ async function renameEntry() {
     const oldPath = renameTarget.value.path
     const parentPath = oldPath.includes('/') ? oldPath.substring(0, oldPath.lastIndexOf('/')) : ''
     const newPath = parentPath ? `${parentPath}/${newName}` : newName
-    
+
     console.log('[FilesPage] Renaming:', oldPath, '->', newPath)
-    
-    const response = await fetch('/api/files/rename', {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        oldPath,
-        newPath,
-        workspace: currentWorkspace.value
-      })
-    })
-    
-    const data = await response.json()
-    
-    if (!response.ok || !data.ok) {
+
+    const data = await rpc.call(
+      () =>
+        fetch('/api/files/rename', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            oldPath,
+            newPath,
+            workspace: currentWorkspace.value,
+          }),
+        }).then((r) => r.json()),
+      { label: 'renameFile', timeout: 15000, retries: 0 }
+    )
+
+    if (!data.ok) {
       throw new Error(data.error?.message || 'Failed to rename')
     }
-    
+
     showRenameModal.value = false
     message.success(t('pages.files.createSuccess'))
     await browsePath(currentPath.value)
@@ -1199,7 +1220,7 @@ onMounted(() => {
         </NTag>
       </div>
 
-      <NSpin :show="loading">
+      <AsyncSection :loading="loading" error-title="Failed to load files" @retry="() => browsePath(currentPath || '/')">
         <NDataTable
           v-if="entries.length > 0"
           :columns="tableColumns"
@@ -1213,7 +1234,7 @@ onMounted(() => {
         />
         <NEmpty v-else-if="!currentWorkspace" :description="t('pages.files.selectAgentFirst')" style="padding: 48px 0;" />
         <NEmpty v-else :description="t('pages.files.empty')" style="padding: 48px 0;" />
-      </NSpin>
+      </AsyncSection>
 
       <NText depth="3" style="font-size: 12px; display: block; margin-top: 12px;">
         {{ t('pages.files.workspace', { path: currentPath || '/' }) }}
@@ -1246,7 +1267,7 @@ onMounted(() => {
         </NSpace>
       </template>
       
-      <NSpin :show="fileLoading">
+      <AsyncSection :loading="fileLoading" error-title="Failed to load file content" @retry="() => selectedFile && openPreview(selectedFile)">
         <div v-if="isImageFile && imageUrl" class="preview-image">
           <NImage 
             :src="imageUrl" 
@@ -1303,7 +1324,7 @@ onMounted(() => {
         <pre v-else-if="isCodeFile || fileContent" class="code-preview">{{ fileContent }}</pre>
         
         <NEmpty v-else :description="t('pages.files.noPreview')" />
-      </NSpin>
+      </AsyncSection>
     </NModal>
 
     <NModal 
