@@ -16,6 +16,7 @@ import {
   NText,
   useMessage,
 } from 'naive-ui'
+import AsyncSection from '@/components/common/AsyncSection.vue'
 import type { SelectOption } from 'naive-ui'
 import {
   BookOutline,
@@ -570,6 +571,7 @@ function isActiveDoc(name: string): boolean {
       </div>
     </NCard>
 
+    <AsyncSection :loading="loading" error-title="Failed to load memory" @retry="memoryStore.initialize()">
     <section class="memory-layout">
       <NCard class="memory-card memory-nav-card" :bordered="false">
         <template #header>
@@ -706,6 +708,7 @@ function isActiveDoc(name: string): boolean {
         </NCard>
       </div>
     </section>
+    </AsyncSection>
   </div>
 </template>
 
