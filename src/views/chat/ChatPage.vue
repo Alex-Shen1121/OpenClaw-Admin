@@ -3671,8 +3671,8 @@ async function handleSend() {
   min-height: 0;
 }
 
-:deep(.chat-transcript-shell .n-spin-container),
-:deep(.chat-transcript-shell .n-spin-content) {
+:deep(.chat-transcript-shell .async-section),
+:deep(.chat-transcript-shell .async-section__content) {
   height: 100%;
   display: flex;
   flex-direction: column;
