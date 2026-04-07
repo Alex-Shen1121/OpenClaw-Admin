@@ -55,6 +55,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'routes.models', icon: 'SparklesOutline' },
       },
       {
+        path: 'model-quota-monitor',
+        name: 'ModelQuotaMonitor',
+        component: () => import('@/views/model-quota/ModelQuotaMonitorPage.vue'),
+        meta: { titleKey: 'routes.modelQuotaMonitor', icon: 'PulseOutline' },
+      },
+      {
         path: 'channels',
         name: 'Channels',
         component: () => import('@/views/channels/ChannelsPage.vue'),
