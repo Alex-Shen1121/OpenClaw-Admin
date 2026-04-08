@@ -196,6 +196,22 @@ export const useSessionStore = defineStore('session', () => {
     sessions.value = sessions.value.filter((s) => s.key !== key)
   }
 
+  async function deleteSessions(keys: string[]) {
+    const results = await Promise.allSettled(
+      keys.map((key) => wsStore.rpc.deleteSession(key))
+    )
+    const deletedKeys = new Set<string>()
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        const key = keys[index]
+        if (key) deletedKeys.add(key)
+      }
+    })
+    sessions.value = sessions.value.filter((s) => !deletedKeys.has(s.key))
+    const failedCount = keys.length - deletedKeys.size
+    return { deletedCount: deletedKeys.size, failedCount }
+  }
+
   async function spawnSession(params: {
     agentId?: string
     channel?: string
@@ -252,6 +268,7 @@ export const useSessionStore = defineStore('session', () => {
     resetSession,
     newSession,
     deleteSession,
+    deleteSessions,
     spawnSession,
     createSession,
     patchSessionLabel,

@@ -10,14 +10,23 @@
   <a href="#技术栈">技术栈</a> •
   <a href="#快速开始">快速开始</a> •
   <a href="#项目结构">项目结构</a> •
-  <a href="#开发指南">开发指南</a>
+  <a href="#开发指南">开发指南</a> •
+  <a href="README.en.md">English</a>
 </p>
 
----
+***
 
 ## 项目简介
 
 OpenClaw Admin 是一个基于 Vue 3 构建的现代化 AI 智能体管理平台，为 OpenClaw Gateway 提供完整的 Web 管理界面。通过直观的可视化操作，用户可以轻松管理 AI 智能体、会话、模型、频道、技能等核心功能。
+
+### 版本兼容性
+
+| OpenClaw Admin | OpenClaw Gateway | 状态    |
+| -------------- | ---------------- | ----- |
+| 0.2.6          | 2026.4.5         | ✅ 已验证 |
+
+> 💡 **提示**：建议使用最新版本的 OpenClaw Gateway 以获得最佳体验。如遇到连接问题，请检查 Gateway 版本是否兼容，或查看 [OpenClaw 更新日志](https://github.com/openclaw/openclaw/releases)。
 
 ### 核心亮点
 
@@ -28,7 +37,7 @@ OpenClaw Admin 是一个基于 Vue 3 构建的现代化 AI 智能体管理平台
 - 🌍 **国际化支持**：内置中英文双语支持，无缝切换
 - 🎨 **现代 UI**：基于 Naive UI 的响应式设计，支持亮色/暗色主题
 
----
+***
 
 ## 功能特性
 
@@ -187,55 +196,55 @@ OpenClaw Admin 是一个基于 Vue 3 构建的现代化 AI 智能体管理平台
 - 外观主题设置
 - 环境变量配置
 
----
+***
 
 ## 技术栈
 
 ### 前端框架
 
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| Vue | 3.5.x | 渐进式 JavaScript 框架 |
-| Vue Router | 4.x | 官方路由管理器 |
-| Pinia | 3.x | 状态管理库 |
-| TypeScript | 5.x | 类型安全的 JavaScript 超集 |
-| Vite | 7.x | 下一代前端构建工具 |
+| 技术         | 版本    | 说明                  |
+| ---------- | ----- | ------------------- |
+| Vue        | 3.5.x | 渐进式 JavaScript 框架   |
+| Vue Router | 4.x   | 官方路由管理器             |
+| Pinia      | 3.x   | 状态管理库               |
+| TypeScript | 5.x   | 类型安全的 JavaScript 超集 |
+| Vite       | 7.x   | 下一代前端构建工具           |
 
 ### UI 组件库
 
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| Naive UI | 2.43.x | Vue 3 组件库 |
-| @vicons/ionicons5 | 0.13.x | 图标库 |
-| @fortawesome | 7.x | Font Awesome 图标 |
+| 技术                | 版本     | 说明              |
+| ----------------- | ------ | --------------- |
+| Naive UI          | 2.43.x | Vue 3 组件库       |
+| @vicons/ionicons5 | 0.13.x | 图标库             |
+| @fortawesome      | 7.x    | Font Awesome 图标 |
 
 ### 通信与数据
 
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| WebSocket | - | 实时双向通信 |
-| SSE | - | 服务器推送事件 |
+| 技术          | 版本   | 说明           |
+| ----------- | ---- | ------------ |
+| WebSocket   | -    | 实时双向通信       |
+| SSE         | -    | 服务器推送事件      |
 | markdown-it | 14.x | Markdown 解析器 |
 
 ### 后端服务
 
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| Express | 5.x | Node.js Web 框架 |
-| ws | 8.x | WebSocket 实现 |
-| better-sqlite3 | 12.x | SQLite 数据库 |
-| node-pty | 1.x | 伪终端支持 |
-| ssh2 | 1.x | SSH 客户端 |
+| 技术             | 版本   | 说明             |
+| -------------- | ---- | -------------- |
+| Express        | 5.x  | Node.js Web 框架 |
+| ws             | 8.x  | WebSocket 实现   |
+| better-sqlite3 | 12.x | SQLite 数据库     |
+| node-pty       | 1.x  | 伪终端支持          |
+| ssh2           | 1.x  | SSH 客户端        |
 
 ### 终端相关
 
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| @xterm/xterm | 6.x | 终端模拟器 |
-| @xterm/addon-fit | 0.11.x | 终端自适应 |
-| @xterm/addon-web-links | 0.12.x | 链接支持 |
+| 技术                     | 版本     | 说明    |
+| ---------------------- | ------ | ----- |
+| @xterm/xterm           | 6.x    | 终端模拟器 |
+| @xterm/addon-fit       | 0.11.x | 终端自适应 |
+| @xterm/addon-web-links | 0.12.x | 链接支持  |
 
----
+***
 
 ## 快速开始
 
@@ -290,7 +299,7 @@ npm run build
 npm run preview
 ```
 
----
+***
 
 ## 项目结构
 
@@ -392,7 +401,7 @@ openclaw-admin/
 └── .env                        # 本地环境变量（由 .env.example 复制）
 ```
 
----
+***
 
 ## 开发指南
 
@@ -404,12 +413,12 @@ openclaw-admin/
 
 ### 命名约定
 
-| 类型 | 命名规范 | 示例 |
-|------|----------|------|
-| 组件 | PascalCase.vue | `ConnectionStatus.vue` |
-| 路由页面 | *Page.vue | `SessionsPage.vue` |
-| Store | camelCase.ts | `session.ts` |
-| Composable | use*.ts | `useTheme.ts` |
+| 类型         | 命名规范           | 示例                     |
+| ---------- | -------------- | ---------------------- |
+| 组件         | PascalCase.vue | `ConnectionStatus.vue` |
+| 路由页面       | \*Page.vue     | `SessionsPage.vue`     |
+| Store      | camelCase.ts   | `session.ts`           |
+| Composable | use\*.ts       | `useTheme.ts`          |
 
 ### 构建验证
 
@@ -433,7 +442,6 @@ cp .env.example .env
 
 ```env
 VITE_APP_TITLE=OpenClaw Admin
-VITE_APP_VERSION=0.2.4
 OPENCLAW_WS_URL=ws://localhost:18789
 OPENCLAW_AUTH_TOKEN=
 OPENCLAW_AUTH_PASSWORD=      # Gateway 密码，与 Token 二选一即可
@@ -446,7 +454,7 @@ MEDIA_DIR=
 # OPENCLAW_HOME=/path/to/.openclaw
 ```
 
----
+***
 
 ## API 参考
 
@@ -506,7 +514,7 @@ MEDIA_DIR=
 - `system-presence` - 实例状态
 - `logs.tail` - 日志查看
 
----
+***
 
 ## 安全说明
 
@@ -514,19 +522,19 @@ MEDIA_DIR=
 - 凭证字段采用掩码显示，不回显明文
 - API Key 仅在输入新值时提交，未输入则保持原值
 
----
+***
 
 ## 许可证
 
 [MIT License](LICENSE)
 
----
+***
 
 ## 贡献指南
 
 欢迎提交 Issue 和 Pull Request！
 
-**GitHub 仓库**: [https://github.com/itq5/OpenClaw-Admin](https://github.com/itq5/OpenClaw-Admin)
+**GitHub 仓库**: <https://github.com/itq5/OpenClaw-Admin>
 
 1. Fork 本仓库
 2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
@@ -534,13 +542,13 @@ MEDIA_DIR=
 4. 推送到分支 (`git push origin feature/amazing-feature`)
 5. 创建 Pull Request
 
----
+***
 
 ## 联系方式
 
 ### 作者邮箱
 
-📧 [root@itq5.com](mailto:root@itq5.com)
+📧 <root@itq5.com>
 
 ### 微信交流群
 
@@ -548,7 +556,7 @@ MEDIA_DIR=
 
 ![微信群](docs/images/微信群.png)
 
----
+***
 
 <p align="center">
   Made with ❤️ by <a href="https://github.com/itq5/OpenClaw-Admin">OpenClaw Admin</a> Team

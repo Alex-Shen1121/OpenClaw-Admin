@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   NAlert,
   NAvatar,
@@ -406,7 +406,30 @@ onMounted(async () => {
   } catch (error) {
     message.warning(error instanceof Error ? error.message : t('pages.memory.messages.initFailed'))
   }
+  document.addEventListener('click', handleCodeCopy)
 })
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleCodeCopy)
+})
+
+function handleCodeCopy(event: Event) {
+  const target = event.target as HTMLElement
+  const button = target.closest('.code-copy-btn') as HTMLButtonElement
+  if (!button) return
+  
+  const code = button.dataset.code || ''
+  navigator.clipboard.writeText(code).then(() => {
+    button.classList.add('copied')
+    button.title = 'Copied!'
+    setTimeout(() => {
+      button.classList.remove('copied')
+      button.title = 'Copy code'
+    }, 2000)
+  }).catch((err) => {
+    console.error('Failed to copy:', err)
+  })
+}
 
 function formatBytes(value?: number): string {
   if (!value || value <= 0) return '-'
@@ -1027,6 +1050,86 @@ function isActiveDoc(name: string): boolean {
   background: var(--md-code-bg);
 }
 
+/* —— 代码块容器 —— */
+.memory-markdown :deep(.code-block-container) {
+  display: flex;
+  position: relative;
+  margin: 6px 0;
+  border-radius: 6px;
+  border: 1px solid var(--md-code-border);
+  background: var(--md-pre-bg);
+  overflow-x: auto;
+}
+
+.memory-markdown :deep(.code-block-container) pre {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+
+.memory-markdown :deep(.code-line-numbers) {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 8px;
+  background: rgba(0, 0, 0, 0.03);
+  border-right: 1px solid var(--md-code-border);
+  text-align: right;
+  user-select: none;
+  min-width: 40px;
+}
+
+.memory-markdown :deep(.line-number) {
+  font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  font-size: 0.87em;
+  line-height: 1.52;
+  color: var(--text-tertiary);
+  padding: 0 4px;
+}
+
+.memory-markdown :deep(.code-content) {
+  flex: 1;
+  padding: 10px 12px;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.memory-markdown :deep(.code-content code) {
+  display: block;
+  font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  font-size: 0.87em;
+  line-height: 1.52;
+  white-space: pre;
+}
+
+.memory-markdown :deep(.code-copy-btn) {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--md-code-border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.memory-markdown :deep(.code-block-container:hover .code-copy-btn) {
+  opacity: 1;
+}
+
+.memory-markdown :deep(.code-copy-btn:hover) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.memory-markdown :deep(.code-copy-btn.copied) {
+  color: var(--link-color);
+}
+
 /* —— 分割线 —— */
 .memory-markdown :deep(hr) {
   border: 0;
@@ -1115,5 +1218,10 @@ function isActiveDoc(name: string): boolean {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+/* —— 暗色主题代码块适配 —— */
+[data-theme='dark'] .memory-markdown :deep(.code-line-numbers) {
+  background: rgba(255, 255, 255, 0.03);
 }
 </style>

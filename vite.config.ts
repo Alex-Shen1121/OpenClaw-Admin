@@ -1,10 +1,15 @@
+import { readFileSync } from 'fs'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 import { defineConfig, loadEnv } from 'vite'
 
+const packageJson = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf-8'),
+) as { version?: string }
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const appVersion = env.VITE_APP_VERSION || process.env.npm_package_version || ''
+  const appVersion = packageJson.version || ''
   
   const backendPort = env.PORT || '3000'
   const frontendPort = env.DEV_PORT || '3001'

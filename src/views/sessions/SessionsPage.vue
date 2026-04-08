@@ -24,6 +24,7 @@ import {
   AddOutline,
   ChatbubblesOutline,
   RefreshOutline,
+  RemoveOutline,
   SearchOutline,
   TimeOutline,
   TrashOutline,
@@ -60,6 +61,21 @@ const createForm = ref({
   channel: 'main',
   peer: '',
   label: '',
+})
+const checkedRowKeys = ref<string[]>([])
+const batchDeleting = ref(false)
+
+const allSessionKeys = computed(() => filteredSessions.value.map((s) => s.key))
+const isAllSelected = computed(() => {
+  if (allSessionKeys.value.length === 0) return false
+  return allSessionKeys.value.every((key) => checkedRowKeys.value.includes(key))
+})
+const isPartialSelected = computed(() => {
+  if (allSessionKeys.value.length === 0) return false
+  const selectedCount = allSessionKeys.value.filter((key) =>
+    checkedRowKeys.value.includes(key)
+  ).length
+  return selectedCount > 0 && selectedCount < allSessionKeys.value.length
 })
 
 const sortOptions = computed<SelectOption[]>(() => ([
@@ -228,6 +244,9 @@ const stats = computed(() => {
 })
 
 const sessionColumns = computed<DataTableColumns<SessionRow>>(() => ([
+  {
+    type: 'selection',
+  },
   {
     title: t('pages.sessions.list.columns.session'),
     key: 'session',
@@ -403,6 +422,35 @@ async function handleDelete(session: SessionRow) {
   }
 }
 
+async function handleBatchDelete() {
+  if (checkedRowKeys.value.length === 0) return
+  batchDeleting.value = true
+  try {
+    const result = await sessionStore.deleteSessions(checkedRowKeys.value)
+    if (result.failedCount > 0) {
+      message.warning(t('pages.sessions.list.batchDeletePartial', {
+        deleted: result.deletedCount,
+        failed: result.failedCount,
+      }))
+    } else {
+      message.success(t('pages.sessions.list.batchDeleteSuccess', { count: result.deletedCount }))
+    }
+    checkedRowKeys.value = []
+  } catch {
+    message.error(t('pages.sessions.list.batchDeleteFailed'))
+  } finally {
+    batchDeleting.value = false
+  }
+}
+
+function handleSelectAll() {
+  if (isAllSelected.value) {
+    checkedRowKeys.value = []
+  } else {
+    checkedRowKeys.value = [...allSessionKeys.value]
+  }
+}
+
 function openCreateModal() {
   createForm.value = {
     agentId: 'main',
@@ -440,6 +488,39 @@ async function handleCreateSession() {
       </template>
       <template #header-extra>
         <NSpace :size="8">
+          <NButton
+            v-if="filteredSessions.length > 0"
+            size="small"
+            :type="isAllSelected ? 'warning' : 'default'"
+            :ghost="!isAllSelected && !isPartialSelected"
+            @click="handleSelectAll"
+          >
+            <template #icon>
+              <NIcon :component="isAllSelected ? RemoveOutline : AddOutline" />
+            </template>
+            {{ isAllSelected ? t('pages.sessions.list.deselectAll') : t('pages.sessions.list.selectAll') }}
+            ({{ filteredSessions.length }})
+          </NButton>
+          <NPopconfirm
+            v-if="checkedRowKeys.length > 0"
+            :disabled="batchDeleting"
+            @positive-click="handleBatchDelete"
+          >
+            <template #trigger>
+              <NButton
+                size="small"
+                type="error"
+                :loading="batchDeleting"
+                :disabled="batchDeleting"
+              >
+                <template #icon>
+                  <NIcon :component="TrashOutline" />
+                </template>
+                {{ t('pages.sessions.list.batchDelete', { count: checkedRowKeys.length }) }}
+              </NButton>
+            </template>
+            {{ t('pages.sessions.list.confirmBatchDelete', { count: checkedRowKeys.length }) }}
+          </NPopconfirm>
           <NButton size="small" type="primary" @click="openCreateModal">
             <template #icon>
               <NIcon :component="AddOutline" />
@@ -519,6 +600,7 @@ async function handleCreateSession() {
       </template>
 
       <NDataTable
+        v-model:checked-row-keys="checkedRowKeys"
         :columns="sessionColumns"
         :data="filteredSessions"
         :loading="sessionStore.loading"
@@ -526,6 +608,7 @@ async function handleCreateSession() {
         :row-key="(row: SessionRow) => row.key"
         :pagination="{ pageSize: 12 }"
         :scroll-x="1110"
+        :max-height="600"
         striped
       />
     </NCard>

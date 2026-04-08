@@ -61,9 +61,12 @@ export class ApiClient {
         url += `?token=${encodeURIComponent(token)}`
       }
 
+      console.log('[ApiClient] Creating EventSource:', url)
+
       this.eventSource = new EventSource(url)
 
       this.eventSource.onopen = () => {
+        console.log('[ApiClient] EventSource opened')
         this.reconnectAttempts = 0
       }
 
@@ -71,7 +74,9 @@ export class ApiClient {
         this.handleMessage(event.data)
       }
 
-      this.eventSource.onerror = () => {
+      this.eventSource.onerror = (error) => {
+        console.error('[ApiClient] EventSource error:', error)
+        console.error('[ApiClient] EventSource readyState:', this.eventSource?.readyState)
         this.handleDisconnect()
       }
     } catch (e) {
@@ -83,13 +88,16 @@ export class ApiClient {
   private handleMessage(data: string): void {
     try {
       const message = JSON.parse(data)
+      console.log('[ApiClient] Received message type:', message.type, 'data:', JSON.stringify(message).substring(0, 200))
 
       switch (message.type) {
         case 'connected':
           this.clientId = message.clientId
+          console.log('[ApiClient] Connected with clientId:', this.clientId)
           break
 
         case 'gatewayState':
+          console.log('[ApiClient] Gateway state:', message.state, 'version:', message.version)
           if (message.state === 'connected') {
             this._state = ConnectionState.CONNECTED
             this.emit('stateChange', ConnectionState.CONNECTED)
@@ -128,6 +136,8 @@ export class ApiClient {
   }
 
   private handleDisconnect(): void {
+    console.log('[ApiClient] Disconnected, current state:', this._state)
+    
     if (this.eventSource) {
       this.eventSource.close()
       this.eventSource = null
@@ -140,12 +150,16 @@ export class ApiClient {
       this._state !== ConnectionState.FAILED
 
     if (shouldReconnect) {
+      console.log('[ApiClient] Scheduling reconnect...')
       this.scheduleReconnect()
+    } else {
+      console.log('[ApiClient] Not reconnecting, state:', this._state)
     }
   }
 
   private scheduleReconnect(): void {
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
+      console.error('[ApiClient] Max reconnect attempts reached:', this.reconnectAttempts)
       this._state = ConnectionState.FAILED
       this.emit('stateChange', ConnectionState.FAILED)
       this.emit('failed', 'Max reconnect attempts reached')
@@ -160,6 +174,8 @@ export class ApiClient {
       30000
     )
     this.reconnectAttempts++
+    
+    console.log('[ApiClient] Reconnecting in', delay, 'ms, attempt', this.reconnectAttempts)
 
     this.reconnectTimer = setTimeout(() => {
       this.createEventSource()

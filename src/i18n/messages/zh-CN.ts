@@ -727,6 +727,9 @@ export default {
           minimax: {
             name: 'MiniMax Coding',
           },
+          bailian: {
+            name: '阿里云百炼 Coding',
+          },
         },
         messages: {
           keyRequired: '请先填写 API Key',
@@ -1314,6 +1317,13 @@ export default {
         emptySide: '从左侧选择会话后，可进行查看详情、导出、重置或删除。',
         deleteSuccess: '会话已删除',
         deleteFailed: '删除失败',
+        batchDelete: '删除选中 ({count})',
+        confirmBatchDelete: '确认删除选中的 {count} 个会话？此操作不可撤销。',
+        batchDeleteSuccess: '已成功删除 {count} 个会话',
+        batchDeletePartial: '已删除 {deleted} 个会话，{failed} 个失败',
+        batchDeleteFailed: '批量删除失败',
+        selectAll: '全选',
+        deselectAll: '取消全选',
       },
       detail: {
         title: '会话详情',

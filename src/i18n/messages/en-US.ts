@@ -1314,6 +1314,13 @@ export default {
         emptySide: 'Select a session on the left to view/export/reset/delete.',
         deleteSuccess: 'Session deleted',
         deleteFailed: 'Delete failed',
+        batchDelete: 'Delete Selected ({count})',
+        confirmBatchDelete: 'Delete {count} selected sessions? This action cannot be undone.',
+        batchDeleteSuccess: '{count} sessions deleted successfully',
+        batchDeletePartial: '{deleted} sessions deleted, {failed} failed',
+        batchDeleteFailed: 'Batch delete failed',
+        selectAll: 'Select All',
+        deselectAll: 'Deselect All',
       },
       detail: {
         title: 'Session Detail',
