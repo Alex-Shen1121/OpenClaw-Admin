@@ -60,6 +60,15 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_tasks_scenario_id ON tasks(scenario_id);
   CREATE INDEX IF NOT EXISTS idx_scenarios_status ON scenarios(status);
+  CREATE TABLE IF NOT EXISTS quota_keys (
+    id TEXT PRIMARY KEY,
+    platform TEXT NOT NULL DEFAULT 'minimax',
+    label TEXT NOT NULL,
+    key_prefix TEXT NOT NULL,
+    key_suffix TEXT NOT NULL,
+    raw_key TEXT NOT NULL,
+    created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+  );
   CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
   CREATE INDEX IF NOT EXISTS idx_backup_records_created_at ON backup_records(created_at);
 `)
@@ -132,6 +141,28 @@ export function getBackupRecordsCount() {
 
 export function deleteBackupRecord(id) {
   const stmt = db.prepare('DELETE FROM backup_records WHERE id = ?')
+  stmt.run(id)
+}
+
+// ─── Quota Keys CRUD ─────────────────────────────────────────────────────────
+export function getQuotaKeys() {
+  const stmt = db.prepare('SELECT * FROM quota_keys ORDER BY created_at ASC')
+  return stmt.all()
+}
+
+export function getQuotaKey(id) {
+  const stmt = db.prepare('SELECT * FROM quota_keys WHERE id = ?')
+  return stmt.get(id)
+}
+
+export function createQuotaKey(id, platform, label, keyPrefix, keySuffix, rawKey) {
+  const stmt = db.prepare('INSERT INTO quota_keys (id, platform, label, key_prefix, key_suffix, raw_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+  stmt.run(id, platform, label, keyPrefix, keySuffix, rawKey, Date.now())
+  return id
+}
+
+export function deleteQuotaKey(id) {
+  const stmt = db.prepare('DELETE FROM quota_keys WHERE id = ?')
   stmt.run(id)
 }
 

@@ -12,7 +12,7 @@ import multer from 'multer'
 import checkDiskSpace from 'check-disk-space'
 import { execSync } from 'child_process'
 import pty from 'node-pty'
-import db, { createBackupRecord, updateBackupRecord, getBackupRecord, getBackupRecords, getBackupRecordsCount, deleteBackupRecord } from './database.js'
+import db, { createBackupRecord, updateBackupRecord, getBackupRecord, getBackupRecords, getBackupRecordsCount, deleteBackupRecord, getQuotaKeys, createQuotaKey, deleteQuotaKey } from './database.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -43,6 +43,10 @@ function loadEnvConfig() {
     AUTH_USERNAME: parsed.AUTH_USERNAME || '',
     AUTH_PASSWORD: parsed.AUTH_PASSWORD || '',
     MEDIA_DIR: parsed.MEDIA_DIR || '',
+    MINIMAX_KEY1: parsed.MINIMAX_KEY1 || '',
+    MINIMAX_KEY2: parsed.MINIMAX_KEY2 || '',
+    MINIMAX_KEY3: parsed.MINIMAX_KEY3 || '',
+    MINIMAX_KEY4: parsed.MINIMAX_KEY4 || '',
   }
 }
 
@@ -283,6 +287,123 @@ app.get('/api/health', (req, res) => {
     clients: sseClients.size,
   })
 })
+
+// ─── MiniMax 模型余量查询 ──────────────────────────────────────────────
+const MINIMAX_URL = 'https://www.minimaxi.com/v1/api/openplatform/coding_plan/remains'
+
+function maskKey(rawKey) {
+  if (!rawKey || rawKey.length <= 8) return { prefix: rawKey.slice(0, 3), suffix: '****' }
+  return { prefix: rawKey.slice(0, 6), suffix: rawKey.slice(-4) }
+}
+
+async function fetchMiniMaxRemains(apiKey) {
+  const resp = await fetch(MINIMAX_URL, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'MiniMax-Quota-Monitor/1.0',
+    },
+  })
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+  return resp.json()
+}
+
+// POST /api/quota/minimax/batch — 批量查询多个 key（前端 localStorage 传过来，不在后端落地）
+// Body: { keys: [{ id, label, key, platform }] }
+// platform 目前支持: "minimax"
+app.post('/api/quota/minimax/batch-direct', async (req, res) => {
+  const { keys = [] } = req.body
+  if (!Array.isArray(keys)) {
+    res.status(400).json({ error: 'keys must be an array' })
+    return
+  }
+
+  const results = await Promise.all(
+    keys.map(async (entry) => {
+      const { id, label, key, platform = 'minimax' } = entry
+      if (!key || typeof key !== 'string') {
+        return { id, label, platform, ok: false, data: null, error: 'Key is required' }
+      }
+      try {
+        const data = await fetchMiniMaxRemains(key)
+        return { id, label, platform, ok: true, data, error: null }
+      } catch (err) {
+        return { id, label, platform, ok: false, data: null, error: err instanceof Error ? err.message : String(err) }
+      }
+    })
+  )
+
+  res.json({ results })
+})
+
+// GET /api/quota/keys — 列出所有已保存的 Key（元数据，不含 raw_key）
+// POST /api/quota/keys — 新增 Key（存 raw_key 到数据库）
+// DELETE /api/quota/keys/:id — 删除指定 Key
+
+app.get('/api/quota/keys', authMiddleware, (_req, res) => {
+  try {
+    const keys = getQuotaKeys()
+    // 不返回 raw_key 明文
+    res.json({ keys: keys.map(k => ({ id: k.id, platform: k.platform, label: k.label, key_prefix: k.key_prefix, key_suffix: k.key_suffix })) })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+  }
+})
+
+app.post('/api/quota/keys', authMiddleware, (req, res) => {
+  const { platform, label, raw_key } = req.body
+  if (!platform || !label || !raw_key) {
+    res.status(400).json({ error: 'platform, label, raw_key are required' })
+    return
+  }
+  if (!['minimax'].includes(platform)) {
+    res.status(400).json({ error: 'Unsupported platform' })
+    return
+  }
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36)
+  const { prefix, suffix } = maskKey(raw_key)
+  try {
+    createQuotaKey(id, platform, label, prefix, suffix, raw_key)
+    res.json({ id, platform, label, key_prefix: prefix, key_suffix: suffix })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+  }
+})
+
+app.delete('/api/quota/keys/:id', authMiddleware, (req, res) => {
+  try {
+    deleteQuotaKey(req.params.id)
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
+  }
+})
+
+// POST /api/quota/minimax/batch — 批量查询（raw_key 从 DB 读，不经过前端）
+app.post('/api/quota/minimax/batch', authMiddleware, async (req, res) => {
+  const { ids } = req.body  // 可选：指定 ids，不传则查全部
+  let keys = getQuotaKeys()
+  if (ids && Array.isArray(ids)) {
+    keys = keys.filter(k => ids.includes(k.id))
+  }
+  if (keys.length === 0) {
+    res.json({ results: [] })
+    return
+  }
+  const results = await Promise.all(
+    keys.map(async (k) => {
+      try {
+        const data = await fetchMiniMaxRemains(k.raw_key)
+        return { id: k.id, label: k.label, platform: k.platform, ok: true, data, error: null }
+      } catch (err) {
+        return { id: k.id, label: k.label, platform: k.platform, ok: false, data: null, error: err instanceof Error ? err.message : String(err) }
+      }
+    })
+  )
+  res.json({ results })
+})
+
 
 app.get('/api/npm/versions', async (req, res) => {
   try {
