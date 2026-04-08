@@ -61,6 +61,8 @@ const createForm = ref({
   peer: '',
   label: '',
 })
+const checkedRowKeys = ref<string[]>([])
+const batchDeleting = ref(false)
 
 const sortOptions = computed<SelectOption[]>(() => ([
   { label: t('pages.sessions.list.sort.recent'), value: 'recent' },
@@ -228,6 +230,9 @@ const stats = computed(() => {
 })
 
 const sessionColumns = computed<DataTableColumns<SessionRow>>(() => ([
+  {
+    type: 'selection',
+  },
   {
     title: t('pages.sessions.list.columns.session'),
     key: 'session',
@@ -403,6 +408,27 @@ async function handleDelete(session: SessionRow) {
   }
 }
 
+async function handleBatchDelete() {
+  if (checkedRowKeys.value.length === 0) return
+  batchDeleting.value = true
+  try {
+    const result = await sessionStore.deleteSessions(checkedRowKeys.value)
+    if (result.failedCount > 0) {
+      message.warning(t('pages.sessions.list.batchDeletePartial', {
+        deleted: result.deletedCount,
+        failed: result.failedCount,
+      }))
+    } else {
+      message.success(t('pages.sessions.list.batchDeleteSuccess', { count: result.deletedCount }))
+    }
+    checkedRowKeys.value = []
+  } catch {
+    message.error(t('pages.sessions.list.batchDeleteFailed'))
+  } finally {
+    batchDeleting.value = false
+  }
+}
+
 function openCreateModal() {
   createForm.value = {
     agentId: 'main',
@@ -440,6 +466,26 @@ async function handleCreateSession() {
       </template>
       <template #header-extra>
         <NSpace :size="8">
+          <NPopconfirm
+            v-if="checkedRowKeys.length > 0"
+            :disabled="batchDeleting"
+            @positive-click="handleBatchDelete"
+          >
+            <template #trigger>
+              <NButton
+                size="small"
+                type="error"
+                :loading="batchDeleting"
+                :disabled="batchDeleting"
+              >
+                <template #icon>
+                  <NIcon :component="TrashOutline" />
+                </template>
+                {{ t('pages.sessions.list.batchDelete', { count: checkedRowKeys.length }) }}
+              </NButton>
+            </template>
+            {{ t('pages.sessions.list.confirmBatchDelete', { count: checkedRowKeys.length }) }}
+          </NPopconfirm>
           <NButton size="small" type="primary" @click="openCreateModal">
             <template #icon>
               <NIcon :component="AddOutline" />
@@ -519,6 +565,7 @@ async function handleCreateSession() {
       </template>
 
       <NDataTable
+        v-model:checked-row-keys="checkedRowKeys"
         :columns="sessionColumns"
         :data="filteredSessions"
         :loading="sessionStore.loading"
@@ -526,6 +573,7 @@ async function handleCreateSession() {
         :row-key="(row: SessionRow) => row.key"
         :pagination="{ pageSize: 12 }"
         :scroll-x="1110"
+        :max-height="600"
         striped
       />
     </NCard>
