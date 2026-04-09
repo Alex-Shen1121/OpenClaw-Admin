@@ -270,7 +270,8 @@ const sessionTokenStatusText = computed(() =>
 function resolveUsageSession(sessions: SessionsUsageSession[], key: string): SessionsUsageSession | null {
   if (sessions.length === 0) return null
   const normalized = key.trim()
-  return sessions.find((item) => item.key === normalized) || sessions[0] || null
+  const found = sessions.find((item) => item.key === normalized)
+  return found || null
 }
 
 async function fetchSessionTokenUsage(rawKey: string) {
