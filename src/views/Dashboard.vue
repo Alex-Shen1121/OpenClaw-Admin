@@ -57,7 +57,7 @@ const topLoading = ref(true)
 const refreshing = ref(false)
 const usageError = ref<string | null>(null)
 const lastUpdatedAt = ref<number | null>(null)
-const rangePreset = ref<RangePreset>('today')
+const rangePreset = ref<RangePreset>('7d')
 const usageMode = ref<UsageMode>('tokens')
 const usageStartDate = ref('')
 const usageEndDate = ref('')
@@ -477,7 +477,7 @@ async function fetchUsageData() {
         wsStore.rpc.getSessionsUsage({
           startDate: usageStartDate.value,
           endDate: usageEndDate.value,
-          limit: 50,
+          limit: 200,
         }),
       { label: 'getSessionsUsage', timeout: 0, retries: 1 }
     ),
@@ -524,7 +524,7 @@ async function fetchUsageData() {
 }
 
 onMounted(async () => {
-  applyRangePreset('today', false)
+  applyRangePreset('7d', false)
   retryAfterFirstConnect = wsStore.state !== 'connected'
 
   cleanupStateChange = wsStore.subscribe('stateChange', () => {
@@ -855,24 +855,8 @@ function viewModels() {
       </NAlert>
     </NCard>
 
-    <!-- Stat Cards — AsyncSection renders skeleton slot when loading, default slot when ready -->
-    <AsyncSection
-      :loading="statsLoading"
-      :error="statsError"
-      error-label="统计信息加载失败"
-      skeleton-height="88px"
-      @retry="retryStats"
-    >
-      <template #skeleton>
-        <NGrid cols="1 s:2 m:3 l:5" responsive="screen" :x-gap="12" :y-gap="12">
-          <NGridItem v-for="n in 5" :key="n">
-            <div class="stat-card-skeleton">
-              <div class="skeleton-label" />
-              <div class="skeleton-value" />
-            </div>
-          </NGridItem>
-        </NGrid>
-      </template>
+    <!-- Stat Cards — 文字始终显示，仅数字在 loading 时显示骨架屏 -->
+    <div style="position: relative;">
       <NGrid cols="1 s:2 m:3 l:5" responsive="screen" :x-gap="12" :y-gap="12">
         <NGridItem>
           <StatCard
@@ -880,6 +864,7 @@ function viewModels() {
             :value="stats.sessionCount"
             :icon="ChatbubblesOutline"
             color="#18a058"
+            :loading="statsLoading"
           />
         </NGridItem>
         <NGridItem>
@@ -888,6 +873,7 @@ function viewModels() {
             :value="stats.cronCount"
             :icon="CalendarOutline"
             color="#f0a020"
+            :loading="statsLoading"
           />
         </NGridItem>
         <NGridItem>
@@ -896,6 +882,7 @@ function viewModels() {
             :value="stats.modelCount"
             :icon="SparklesOutline"
             color="#2080f0"
+            :loading="statsLoading"
           />
         </NGridItem>
         <NGridItem>
@@ -904,6 +891,7 @@ function viewModels() {
             :value="stats.installedSkills"
             :icon="ExtensionPuzzleOutline"
             color="#8b5cf6"
+            :loading="statsLoading"
           />
         </NGridItem>
         <NGridItem>
@@ -912,60 +900,41 @@ function viewModels() {
             :value="tokenTotalDisplay"
             :icon="FlashOutline"
             color="#d03050"
+            :loading="statsLoading"
           />
         </NGridItem>
       </NGrid>
-    </AsyncSection>
+      <!-- 错误提示 -->
+      <NAlert v-if="statsError" type="warning" :bordered="false" style="margin-top: 12px;" closable @close="statsError = null">
+        {{ statsError }}
+        <template #action>
+          <NButton size="small" @click="retryStats">重试</NButton>
+        </template>
+      </NAlert>
+    </div>
 
-    <!-- KPIs Card — AsyncSection with module-level loading -->
-    <AsyncSection
-      :loading="kpisLoading"
-      :error="usageError"
-      error-label="使用量数据加载失败"
-      skeleton-height="110px"
-      @retry="retryUsage"
-    >
-      <template #skeleton>
-        <NCard :title="t('pages.dashboard.cards.kpis')" class="dashboard-card">
-          <div class="kpi-grid">
-            <div v-for="n in 6" :key="n" class="kpi-card kpi-skeleton">
-              <div class="skeleton-label" />
-              <div class="skeleton-value" />
-              <div class="skeleton-hint" />
-            </div>
+    <!-- KPIs Card — 文字始终显示，loading 时数字显示 -- -->
+    <NCard :title="t('pages.dashboard.cards.kpis')" class="dashboard-card">
+      <div class="kpi-grid">
+        <div v-for="kpi in usageKpis" :key="kpi.key" class="kpi-card">
+          <NText depth="3">{{ kpi.label }}</NText>
+          <div class="kpi-value">
+            <template v-if="kpisLoading">--</template>
+            <template v-else>{{ kpi.value }}</template>
           </div>
-        </NCard>
-      </template>
-      <NCard :title="t('pages.dashboard.cards.kpis')" class="dashboard-card">
-        <div class="kpi-grid">
-          <div v-for="kpi in usageKpis" :key="kpi.key" class="kpi-card">
-            <NText depth="3">{{ kpi.label }}</NText>
-            <div class="kpi-value">{{ kpi.value }}</div>
-            <NText depth="3" style="font-size: 12px;">{{ kpi.hint }}</NText>
-          </div>
+          <NText depth="3" style="font-size: 12px;">
+            <template v-if="kpisLoading">--</template>
+            <template v-else>{{ kpi.hint }}</template>
+          </NText>
         </div>
-      </NCard>
-    </AsyncSection>
+      </div>
+    </NCard>
 
-    <!-- Usage Trend + Structure Grid — AsyncSection for each module -->
+    <!-- Usage Trend + Structure Grid — 文字始终显示，loading 时显示占位符 -->
     <NGrid cols="1 l:3" responsive="screen" :x-gap="12" :y-gap="12">
       <NGridItem :span="2" class="usage-trend-item">
-        <!-- Trend chart — single AsyncSection renders skeleton or content based on loading state -->
-        <AsyncSection
-          :loading="trendLoading"
-          :error="usageError"
-          error-label="趋势数据加载失败"
-          skeleton-height="280px"
-          @retry="retryUsage"
-        >
-          <template #skeleton>
-            <NCard :title="t('pages.dashboard.cards.trend')" class="dashboard-card usage-trend-card">
-              <div class="trend-chart-panel trend-skeleton">
-                <div class="trend-skeleton-bar" v-for="n in 7" :key="n" :style="{ height: `${20 + Math.random() * 60}%` }" />
-              </div>
-            </NCard>
-          </template>
-          <NCard :title="t('pages.dashboard.cards.trend')" class="dashboard-card usage-trend-card">
+        <!-- Trend chart — 标题保留，loading 时图表区域显示骨架屏 -->
+        <NCard :title="t('pages.dashboard.cards.trend')" class="dashboard-card usage-trend-card">
             <template #header-extra>
               <NSpace :size="8" align="center">
                 <NTag size="small" :bordered="false" round type="info">
@@ -1047,45 +1016,24 @@ function viewModels() {
             <div v-else class="daily-empty">{{ t('pages.dashboard.trend.empty') }}</div>
           </div>
           </NCard>
-        </AsyncSection>
       </NGridItem>
 
       <NGridItem :span="1" class="usage-structure-item">
-        <!-- Structure card — single AsyncSection renders skeleton or content based on loading state -->
-        <AsyncSection
-          :loading="structureLoading"
-          :error="usageError"
-          error-label="结构数据加载失败"
-          skeleton-height="200px"
-          @retry="retryUsage"
-        >
-          <template #skeleton>
-            <NCard :title="t('pages.dashboard.cards.structure')" class="dashboard-card usage-structure-card">
-              <NSpace justify="space-between" align="center" style="margin-bottom: 8px;">
-                <div class="skeleton-label" style="width: 80px;" />
-                <div class="skeleton-value" style="width: 60px;" />
-              </NSpace>
-              <div class="segment-track segment-skeleton">
-                <div v-for="n in 4" :key="n" class="segment-skeleton-bar" :style="{ width: `${15 + n * 15}%` }" />
-              </div>
-              <div class="segment-list" style="margin-top: 10px;">
-                <div v-for="n in 4" :key="n" class="segment-row">
-                  <div class="segment-row-label">
-                    <div class="skeleton-dot" />
-                    <div class="skeleton-label" style="width: 70px;" />
-                  </div>
-                  <div class="skeleton-value" style="width: 50px;" />
-                </div>
-              </div>
-            </NCard>
-          </template>
-          <NCard :title="t('pages.dashboard.cards.structure')" class="dashboard-card usage-structure-card">
-            <NSpace justify="space-between" align="center" style="margin-bottom: 8px;">
-              <NText depth="3">{{ usageMode === 'tokens' ? t('pages.dashboard.usage.totalTokens') : t('pages.dashboard.usage.totalCost') }}</NText>
-              <NText strong>{{ usageMode === 'tokens' ? tokenTotalDisplay : costTotalDisplay }}</NText>
-            </NSpace>
+        <!-- Structure card — 文字始终显示，loading 时数字显示 -- -->
+        <NCard :title="t('pages.dashboard.cards.structure')" class="dashboard-card usage-structure-card">
+          <NSpace justify="space-between" align="center" style="margin-bottom: 8px;">
+            <NText depth="3">{{ usageMode === 'tokens' ? t('pages.dashboard.usage.totalTokens') : t('pages.dashboard.usage.totalCost') }}</NText>
+            <NText strong>
+              <template v-if="structureLoading">--</template>
+              <template v-else>{{ usageMode === 'tokens' ? tokenTotalDisplay : costTotalDisplay }}</template>
+            </NText>
+          </NSpace>
 
-            <div class="segment-track">
+          <div class="segment-track">
+            <template v-if="structureLoading">
+              <div v-for="n in 4" :key="n" class="segment-item" :style="{ width: '25%', background: '#e2e8f0' }" />
+            </template>
+            <template v-else>
               <div
                 v-for="segment in usageSegments"
                 :key="segment.key"
@@ -1095,123 +1043,130 @@ function viewModels() {
                   background: segment.color,
                 }"
               />
-            </div>
+            </template>
+          </div>
 
-            <div class="segment-list">
-              <div v-for="segment in usageSegments" :key="`${segment.key}-row`" class="segment-row">
-                <div class="segment-row-label">
-                  <span class="segment-dot" :style="{ background: segment.color }" />
-                  <span>{{ segment.label }}</span>
-                </div>
-                <NText>{{ formatUsageValue(segment.value) }}</NText>
+          <div class="segment-list">
+            <div v-for="segment in usageSegments" :key="`${segment.key}-row`" class="segment-row">
+              <div class="segment-row-label">
+                <span class="segment-dot" :style="{ background: segment.color }" />
+                <span>{{ segment.label }}</span>
               </div>
+              <NText>
+                <template v-if="structureLoading">--</template>
+                <template v-else>{{ formatUsageValue(segment.value) }}</template>
+              </NText>
             </div>
+          </div>
 
-            <NText depth="3" style="display: block; margin-top: 8px; font-size: 12px;">
-              {{ t('pages.dashboard.usage.missingCostEntries', { count: usageTotals.missingCostEntries }) }}
-            </NText>
-          </NCard>
-        </AsyncSection>
+          <NText depth="3" style="display: block; margin-top: 8px; font-size: 12px;">
+            <template v-if="structureLoading">--</template>
+            <template v-else>{{ t('pages.dashboard.usage.missingCostEntries', { count: usageTotals.missingCostEntries }) }}</template>
+          </NText>
+        </NCard>
       </NGridItem>
     </NGrid>
 
-    <!-- Top Models / Providers / Tools — single AsyncSection renders skeleton or content based on loading state -->
-    <AsyncSection
-      :loading="topLoading"
-      :error="usageError"
-      error-label="TOP 数据加载失败"
-      skeleton-height="220px"
-      @retry="retryUsage"
-    >
-      <template #skeleton>
-        <NCard :title="t('pages.dashboard.cards.top')" class="dashboard-card">
-          <NGrid cols="1 m:3" responsive="screen" :x-gap="12" :y-gap="12">
-            <NGridItem v-for="n in 3" :key="n">
-              <div class="top-pane-card">
-                <div class="top-title skeleton-label" style="width: 60px; margin-bottom: 8px;" />
-                <div class="top-list">
-                  <div v-for="m in 4" :key="m" class="top-row">
-                    <div class="top-row-main">
-                      <div class="skeleton-label" style="width: 55%;" />
-                      <div class="skeleton-value" style="width: 30%;" />
-                    </div>
-                    <div class="top-row-bar">
-                      <div class="top-row-bar-inner" :style="{ width: `${30 + m * 15}%` }" />
-                    </div>
-                  </div>
+    <!-- Top Models / Providers / Tools — 文字始终显示，loading 时数字显示 -- -->
+    <NCard :title="t('pages.dashboard.cards.top')" class="dashboard-card">
+      <NGrid cols="1 m:3" responsive="screen" :x-gap="12" :y-gap="12">
+        <NGridItem>
+          <div class="top-pane-card">
+            <div class="top-title">{{ t('pages.dashboard.top.models') }}</div>
+            <div v-if="topLoading" class="top-list">
+              <div v-for="n in 4" :key="n" class="top-row">
+                <div class="top-row-main">
+                  <span>--</span>
+                  <span>--</span>
+                </div>
+                <div class="top-row-bar">
+                  <div class="top-row-bar-inner" style="width: 0%;" />
                 </div>
               </div>
-            </NGridItem>
-          </NGrid>
-        </NCard>
-      </template>
-      <NCard :title="t('pages.dashboard.cards.top')" class="dashboard-card">
-        <NGrid cols="1 m:3" responsive="screen" :x-gap="12" :y-gap="12">
-          <NGridItem>
-            <div class="top-pane-card">
-              <div class="top-title">{{ t('pages.dashboard.top.models') }}</div>
-              <div v-if="topModels.length" class="top-list">
-                <div v-for="item in topModels" :key="`${item.provider || '-'}:${item.model || '-'}`" class="top-row">
-                  <div class="top-row-main">
-                    <span>{{ item.provider ? `${item.provider}/${item.model || '-'}` : item.model || '-' }}</span>
-                    <span>{{ usageMode === 'tokens' ? formatCompactNumber(item.totals.totalTokens) : formatUsd(item.totals.totalCost) }}</span>
-                  </div>
-                  <div class="top-row-bar">
-                    <div
-                      class="top-row-bar-inner top-row-bar-inner-model"
-                      :style="{ width: topBarWidth(usageMetric(item.totals), topModelMax) }"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div v-else class="top-empty">{{ t('common.empty') }}</div>
             </div>
-          </NGridItem>
+            <div v-else-if="topModels.length" class="top-list">
+              <div v-for="item in topModels" :key="`${item.provider || '-'}:${item.model || '-'}`" class="top-row">
+                <div class="top-row-main">
+                  <span>{{ item.provider ? `${item.provider}/${item.model || '-'}` : item.model || '-' }}</span>
+                  <span>{{ usageMode === 'tokens' ? formatCompactNumber(item.totals.totalTokens) : formatUsd(item.totals.totalCost) }}</span>
+                </div>
+                <div class="top-row-bar">
+                  <div
+                    class="top-row-bar-inner top-row-bar-inner-model"
+                    :style="{ width: topBarWidth(usageMetric(item.totals), topModelMax) }"
+                  />
+                </div>
+              </div>
+            </div>
+            <div v-else class="top-empty">{{ t('common.empty') }}</div>
+          </div>
+        </NGridItem>
 
-          <NGridItem>
-            <div class="top-pane-card">
-              <div class="top-title">{{ t('pages.dashboard.top.providers') }}</div>
-              <div v-if="topProviders.length" class="top-list">
-                <div v-for="item in topProviders" :key="item.provider || 'unknown-provider'" class="top-row">
-                  <div class="top-row-main">
-                    <span>{{ item.provider || '-' }}</span>
-                    <span>{{ usageMode === 'tokens' ? formatCompactNumber(item.totals.totalTokens) : formatUsd(item.totals.totalCost) }}</span>
-                  </div>
-                  <div class="top-row-bar">
-                    <div
-                      class="top-row-bar-inner top-row-bar-inner-provider"
-                      :style="{ width: topBarWidth(usageMetric(item.totals), topProviderMax) }"
-                    />
-                  </div>
+        <NGridItem>
+          <div class="top-pane-card">
+            <div class="top-title">{{ t('pages.dashboard.top.providers') }}</div>
+            <div v-if="topLoading" class="top-list">
+              <div v-for="n in 4" :key="n" class="top-row">
+                <div class="top-row-main">
+                  <span>--</span>
+                  <span>--</span>
+                </div>
+                <div class="top-row-bar">
+                  <div class="top-row-bar-inner" style="width: 0%;" />
                 </div>
               </div>
-              <div v-else class="top-empty">{{ t('common.empty') }}</div>
             </div>
-          </NGridItem>
+            <div v-else-if="topProviders.length" class="top-list">
+              <div v-for="item in topProviders" :key="item.provider || 'unknown-provider'" class="top-row">
+                <div class="top-row-main">
+                  <span>{{ item.provider || '-' }}</span>
+                  <span>{{ usageMode === 'tokens' ? formatCompactNumber(item.totals.totalTokens) : formatUsd(item.totals.totalCost) }}</span>
+                </div>
+                <div class="top-row-bar">
+                  <div
+                    class="top-row-bar-inner top-row-bar-inner-provider"
+                    :style="{ width: topBarWidth(usageMetric(item.totals), topProviderMax) }"
+                  />
+                </div>
+              </div>
+            </div>
+            <div v-else class="top-empty">{{ t('common.empty') }}</div>
+          </div>
+        </NGridItem>
 
-          <NGridItem>
-            <div class="top-pane-card">
-              <div class="top-title">{{ t('pages.dashboard.top.tools') }}</div>
-              <div v-if="topTools.length" class="top-list">
-                <div v-for="item in topTools" :key="item.name" class="top-row">
-                  <div class="top-row-main">
-                    <span>{{ item.name }}</span>
-                    <span>{{ item.count }}</span>
-                  </div>
-                  <div class="top-row-bar">
-                    <div
-                      class="top-row-bar-inner top-row-bar-inner-tool"
-                      :style="{ width: topBarWidth(item.count, topToolMax) }"
-                    />
-                  </div>
+        <NGridItem>
+          <div class="top-pane-card">
+            <div class="top-title">{{ t('pages.dashboard.top.tools') }}</div>
+            <div v-if="topLoading" class="top-list">
+              <div v-for="n in 4" :key="n" class="top-row">
+                <div class="top-row-main">
+                  <span>--</span>
+                  <span>--</span>
+                </div>
+                <div class="top-row-bar">
+                  <div class="top-row-bar-inner" style="width: 0%;" />
                 </div>
               </div>
-              <div v-else class="top-empty">{{ t('common.empty') }}</div>
             </div>
-          </NGridItem>
-        </NGrid>
-      </NCard>
-    </AsyncSection>
+            <div v-else-if="topTools.length" class="top-list">
+              <div v-for="item in topTools" :key="item.name" class="top-row">
+                <div class="top-row-main">
+                  <span>{{ item.name }}</span>
+                  <span>{{ item.count }}</span>
+                </div>
+                <div class="top-row-bar">
+                  <div
+                    class="top-row-bar-inner top-row-bar-inner-tool"
+                    :style="{ width: topBarWidth(item.count, topToolMax) }"
+                  />
+                </div>
+              </div>
+            </div>
+            <div v-else class="top-empty">{{ t('common.empty') }}</div>
+          </div>
+        </NGridItem>
+      </NGrid>
+    </NCard>
   </div>
 </template>
 
