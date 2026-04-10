@@ -116,8 +116,8 @@ export const useAgentStore = defineStore("agent", () => {
       defaultAgentId.value = result.defaultId || "main";
       mainKey.value = result.mainKey || "";
       lastUpdatedAt.value = Date.now();
-    } catch (e: any) {
-      error.value = e?.message || "Failed to load agent list";
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : "Failed to load agent list"
     } finally {
       loading.value = false;
     }
@@ -218,8 +218,8 @@ export const useAgentStore = defineStore("agent", () => {
             `[AgentStore] Successfully updated agent name for ${params.agentId} to "${params.name}" on attempt ${attempt + 1}`,
           );
           break;
-        } catch (e: any) {
-          const errorMsg = e?.message || String(e);
+        } catch (e) {
+          const errorMsg = e instanceof Error ? e.message : String(e)
           console.warn(
             `[AgentStore] Failed to update agent name for ${params.agentId} on attempt ${attempt + 1}: ${errorMsg}`,
           );
@@ -295,9 +295,9 @@ export const useAgentStore = defineStore("agent", () => {
           await wsStore.rpc.setConfig(newConfig);
           lastError = null;
           break;
-        } catch (e: any) {
-          lastError = e;
-          const errorMsg = e?.message || String(e);
+        } catch (e) {
+          lastError = e instanceof Error ? e : new Error(String(e))
+          const errorMsg = lastError.message
           if (
             errorMsg.includes("hash") ||
             errorMsg.includes("version") ||
@@ -448,9 +448,9 @@ export const useAgentStore = defineStore("agent", () => {
           await wsStore.rpc.setConfig(newConfig);
           lastError = null;
           break;
-        } catch (e: any) {
-          lastError = e;
-          const errorMsg = e?.message || String(e);
+        } catch (e) {
+          lastError = e instanceof Error ? e : new Error(String(e))
+          const errorMsg = lastError.message
           if (
             errorMsg.includes("hash") ||
             errorMsg.includes("version") ||

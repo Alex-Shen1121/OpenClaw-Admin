@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
   
   const backendPort = env.PORT || '3000'
   const frontendPort = env.DEV_PORT || '3001'
+  const isDev = mode === 'development'
   
   return {
     plugins: [vue()],
@@ -35,17 +36,30 @@ export default defineConfig(({ mode }) => {
     build: {
       target: 'esnext',
       outDir: 'dist',
+      sourcemap: !isDev,
       rollupOptions: {
         output: {
           manualChunks: {
             'vue-vendor': ['vue', 'vue-router', 'pinia'],
+            'ui-vendor': ['naive-ui', '@vicons/ionicons5'],
+            'utils-vendor': ['vue-i18n', 'markdown-it', 'highlight.js', 'katex'],
           },
         },
       },
+      chunkSizeWarningLimit: 1000,
+    },
+    esbuild: {
+      drop: isDev ? [] : ['console', 'debugger'],
+      pure: isDev ? [] : ['console.log', 'console.info', 'console.warn', 'console.debug'],
     },
     define: {
       'import.meta.env.VITE_APP_TITLE': JSON.stringify(env.VITE_APP_TITLE || 'OpenClaw Web'),
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+      __VUE_OPTIONS_API__: false,
+      __VUE_PROD_DEVTOOLS__: false,
+    },
+    optimizeDeps: {
+      include: ['vue', 'vue-router', 'pinia', 'naive-ui', 'vue-i18n'],
     },
   }
 })
