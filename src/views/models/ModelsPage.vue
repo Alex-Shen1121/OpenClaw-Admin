@@ -17,6 +17,7 @@ import {
   NGridItem,
   NIcon,
   NInput,
+  NInputNumber,
   NModal,
   NPopconfirm,
   NSelect,
@@ -59,6 +60,16 @@ type ModelInputType = 'text' | 'image'
 type ModelConfig = {
   id: string
   input: ModelInputType[]
+  api?: string
+  reasoning?: string
+  contextWindow?: number
+  maxTokens?: number
+  cost?: {
+    input?: number
+    output?: number
+    cacheRead?: number
+    cacheWrite?: number
+  }
   raw?: Record<string, unknown>
 }
 
@@ -164,6 +175,19 @@ const apiOptions = [
   { label: 'Google Generative AI', value: 'google-generative-ai' },
 ]
 
+
+const modelApiOptions = [
+  { label: '继承 Provider', value: '' },
+  { label: 'OpenAI Completions', value: 'openai-completions' },
+  { label: 'OpenAI Responses', value: 'openai-responses' },
+  { label: 'Anthropic Messages', value: 'anthropic-messages' },
+  { label: 'Google Generative AI', value: 'google-generative-ai' },
+]
+
+const reasoningOptions = [
+  { label: '是', value: 'yes' },
+  { label: '否', value: 'no' },
+]
 type ProviderSummary = {
   id: string
   api: string
@@ -423,7 +447,7 @@ function readProviderModelIds(provider: ModelProviderConfig | Record<string, unk
   return Array.from(new Set(collected))
 }
 
-function readProviderModels(provider: ModelProviderConfig | Record<string, unknown> | undefined): Array<{ id: string; input?: ModelInputType[]; raw?: Record<string, unknown> }> {
+function readProviderModels(provider: ModelProviderConfig | Record<string, unknown> | undefined): Array<ModelConfig> {
   if (!provider) return []
   const row = provider as Record<string, unknown>
 
@@ -432,9 +456,9 @@ function readProviderModels(provider: ModelProviderConfig | Record<string, unkno
     return readProviderModelIds(provider).map(id => ({ id, input: ['text'] as ModelInputType[] }))
   }
 
-  return modelsArray.map((item): { id: string; input?: ModelInputType[]; raw?: Record<string, unknown> } => {
+  return modelsArray.map((item): ModelConfig => {
     if (typeof item === 'string') {
-      return { id: item.trim(), input: ['text'] }
+      return { id: item.trim(), input: ['text'], cost: {} }
     }
     if (item && typeof item === 'object' && !Array.isArray(item)) {
       const model = item as Record<string, unknown>
@@ -443,9 +467,27 @@ function readProviderModels(provider: ModelProviderConfig | Record<string, unkno
       const input = Array.isArray(model.input)
         ? model.input.filter((v): v is ModelInputType => v === 'text' || v === 'image')
         : ['text'] as ModelInputType[]
-      return { id, input, raw: model }
+      
+      // Extract cost data
+      const costData = model.cost as Record<string, unknown> || {}
+      
+      return { 
+        id, 
+        input, 
+        api: typeof model.api === 'string' ? model.api : undefined,
+        reasoning: typeof model.reasoning === 'boolean' ? (model.reasoning ? 'yes' : 'no') : undefined,
+        contextWindow: typeof model.contextWindow === 'number' ? model.contextWindow : undefined,
+        maxTokens: typeof model.maxTokens === 'number' ? model.maxTokens : undefined,
+        cost: {
+          input: typeof costData.input === 'number' ? costData.input : undefined,
+          output: typeof costData.output === 'number' ? costData.output : undefined,
+          cacheRead: typeof costData.cacheRead === 'number' ? costData.cacheRead : undefined,
+          cacheWrite: typeof costData.cacheWrite === 'number' ? costData.cacheWrite : undefined,
+        },
+        raw: model 
+      }
     }
-    return { id: '', input: ['text'] }
+    return { id: '', input: ['text'], cost: {} }
   }).filter(m => m.id)
 }
 
@@ -715,6 +757,28 @@ const editChangePreview = computed(() => {
   const nextModelIds = pickProviderModelIds(
     currentModelIds.value.length > 0 ? currentModelIds.value : existingModelIds
   )
+  
+  // Build full model data for comparison
+  const buildModelData = (models: ModelConfig[]) => {
+    return models.map(m => ({
+      id: m.id,
+      input: m.input?.sort() || ['text'],
+      api: m.api || '',
+      reasoning: m.reasoning || 'no',
+      contextWindow: m.contextWindow || 0,
+      maxTokens: m.maxTokens || 0,
+      cost: {
+        input: (m.cost || {}).input || 0,
+        output: (m.cost || {}).output || 0,
+        cacheRead: (m.cost || {}).cacheRead || 0,
+        cacheWrite: (m.cost || {}).cacheWrite || 0,
+      }
+    }))
+  }
+  
+  const existingProviderModels = readProviderModels(existingProvider)
+  const existingModelsData = buildModelData(existingProviderModels)
+  const nextModelsData = buildModelData(providerForm.models)
   const addedModelIds = nextModelIds.filter((id) => !existingModelIds.includes(id))
   const removedModelIds = existingModelIds.filter((id) => !nextModelIds.includes(id))
   const modelsChanged =
@@ -771,10 +835,13 @@ const editChangePreview = computed(() => {
     }
   }
 
+  const modelsDeepChanged = JSON.stringify(existingModelsData) !== JSON.stringify(nextModelsData)
+  
   const hasChanges =
     apiChanged ||
     baseUrlChanged ||
     modelsChanged ||
+    modelsDeepChanged ||
     willPatchApiKey ||
     !!inferredPrimary ||
     modelReferenceSyncPatches.length > 0
@@ -795,11 +862,12 @@ const editChangePreview = computed(() => {
       changed: baseUrlChanged,
     },
     modelDiff: {
-      changed: modelsChanged,
+      changed: modelsChanged || modelsDeepChanged,
       beforeCount: existingModelIds.length,
       afterCount: nextModelIds.length,
       added: addedModelIds,
       removed: removedModelIds,
+      deepChanged: modelsDeepChanged,
     },
     apiKeyAction: willPatchApiKey ? 'overwrite' : 'keep',
     inferredPrimary: inferredPrimary || null,
@@ -1661,6 +1729,11 @@ function loadProviderForm(providerId: string) {
   providerForm.models = models.map(m => ({
     id: m.id || '',
     input: normalizeModelInputTypeSelection(m.input as ModelInputType[] || ['text']),
+    api: m.api,
+    reasoning: m.reasoning,
+    contextWindow: m.contextWindow,
+    maxTokens: m.maxTokens,
+    cost: m.cost || {},
     raw: m.raw,
   })).filter(m => m.id)
 }
@@ -1877,12 +1950,23 @@ async function handleSaveProvider(confirmed = false) {
       id: m.id,
       name: m.id,
       input: [...m.input],
+      ...(m.api ? { api: m.api } : {}),
+      ...(m.reasoning ? { reasoning: m.reasoning === 'yes' } : {}),
+      ...(m.contextWindow !== undefined ? { contextWindow: m.contextWindow } : {}),
+      ...(m.maxTokens !== undefined ? { maxTokens: m.maxTokens } : {}),
+      ...((m.cost?.input !== undefined || m.cost?.output !== undefined || m.cost?.cacheRead !== undefined || m.cost?.cacheWrite !== undefined)
+        ? {
+            cost: {
+              ...(m.cost?.input !== undefined ? { input: m.cost.input } : {}),
+              ...(m.cost?.output !== undefined ? { output: m.cost.output } : {}),
+              ...(m.cost?.cacheRead !== undefined ? { cacheRead: m.cost.cacheRead } : {}),
+              ...(m.cost?.cacheWrite !== undefined ? { cacheWrite: m.cost.cacheWrite } : {}),
+            }
+          }
+        : {})
     }
     if (m.raw && typeof m.raw === 'object') {
-      const merged = { ...m.raw }
-      merged.id = m.id
-      merged.name = m.id
-      merged.input = [...m.input]
+      const merged = { ...m.raw, ...base }
       return merged
     }
     return base
@@ -2009,7 +2093,25 @@ async function handleCreateProvider(confirmed = false) {
     return
   }
 
-  const modelsValue = models.map((m) => ({ id: m.id, name: m.id, input: [...m.input] }))
+  const modelsValue = models.map((m) => ({
+    id: m.id,
+    name: m.id,
+    input: [...m.input],
+    ...(m.api ? { api: m.api } : {}),
+    ...(m.reasoning ? { reasoning: m.reasoning === 'yes' } : {}),
+    ...(m.contextWindow !== undefined ? { contextWindow: m.contextWindow } : {}),
+    ...(m.maxTokens !== undefined ? { maxTokens: m.maxTokens } : {}),
+    ...((m.cost?.input !== undefined || m.cost?.output !== undefined || m.cost?.cacheRead !== undefined || m.cost?.cacheWrite !== undefined)
+      ? {
+          cost: {
+            ...(m.cost?.input !== undefined ? { input: m.cost.input } : {}),
+            ...(m.cost?.output !== undefined ? { output: m.cost.output } : {}),
+            ...(m.cost?.cacheRead !== undefined ? { cacheRead: m.cost.cacheRead } : {}),
+            ...(m.cost?.cacheWrite !== undefined ? { cacheWrite: m.cost.cacheWrite } : {}),
+          }
+        }
+      : {})
+  }))
   
   const fullProviderValue: Record<string, unknown> = {
     api: createProviderForm.api,
@@ -2403,46 +2505,148 @@ function handleCreateProviderClick() {
                       size="small"
                       type="primary"
                       dashed
-                      @click="providerForm.models.push({ id: '', input: ['text'] })"
+                      @click="providerForm.models.push({ id: '', input: ['text'], api: '', reasoning: 'no', contextWindow: undefined, maxTokens: undefined, cost: { input: undefined, output: undefined, cacheRead: undefined, cacheWrite: undefined } })"
                     >
                       {{ t('pages.models.form.addModel') }}
                     </NButton>
-                    <div
+                    <NCard
                       v-for="(model, index) in providerForm.models"
                       :key="index"
-                      style="display: flex; gap: 8px; align-items: center; width: 100%;"
+                      size="small"
                     >
-                      <NInput
-                        v-model:value="model.id"
-                        :placeholder="t('pages.models.form.modelIdPlaceholder')"
-                        style="flex: 1;"
-                      />
-                      <NSelect
-                        v-model:value="model.input"
-                        :options="modelInputTypeOptions"
-                        multiple
-                        :placeholder="t('pages.models.form.modelInputTypesPlaceholder')"
-                        style="width: 160px;"
-                      />
-                      <NButton
-                        size="small"
-                        :type="getPrimaryModelStatus('edit', providerForm.id, model.id) === 'current' ? 'success' : getPrimaryModelStatus('edit', providerForm.id, model.id) === 'pending' ? 'warning' : 'default'"
-                        :disabled="!model.id || getPrimaryModelStatus('edit', providerForm.id, model.id) === 'current'"
-                        @click="setAsPendingPrimaryModel('edit', providerForm.id, model.id)"
-                      >
-                        {{ getPrimaryModelStatus('edit', providerForm.id, model.id) === 'current' ? t('pages.models.form.isDefault') : getPrimaryModelStatus('edit', providerForm.id, model.id) === 'pending' ? t('pages.models.form.pendingDefault') : t('pages.models.form.setAsDefault') }}
-                      </NButton>
-                      <NButton
-                        size="small"
-                        quaternary
-                        type="error"
-                        @click="providerForm.models.splice(index, 1)"
-                      >
-                        <template #icon>
-                          <NIcon><CloseOutline /></NIcon>
-                        </template>
-                      </NButton>
-                    </div>
+                      <template #header>
+                        <NSpace justify="space-between">
+                          <NText strong>模型 #{{ index + 1 }}</NText>
+                          <NSpace>
+                            <NButton
+                              size="small"
+                              :type="getPrimaryModelStatus('edit', providerForm.id, model.id) === 'current' ? 'success' : getPrimaryModelStatus('edit', providerForm.id, model.id) === 'pending' ? 'warning' : 'default'"
+                              :disabled="!model.id || getPrimaryModelStatus('edit', providerForm.id, model.id) === 'current'"
+                              @click="setAsPendingPrimaryModel('edit', providerForm.id, model.id)"
+                            >
+                              {{ getPrimaryModelStatus('edit', providerForm.id, model.id) === 'current' ? t('pages.models.form.isDefault') : getPrimaryModelStatus('edit', providerForm.id, model.id) === 'pending' ? t('pages.models.form.pendingDefault') : t('pages.models.form.setAsDefault') }}
+                            </NButton>
+                            <NButton
+                              size="small"
+                              quaternary
+                              type="error"
+                              @click="providerForm.models.splice(index, 1)"
+                            >
+                              <template #icon>
+                                <NIcon><CloseOutline /></NIcon>
+                              </template>
+                            </NButton>
+                          </NSpace>
+                        </NSpace>
+                      </template>
+
+                      <!-- 模型 ID -->
+                      <div style="margin-bottom: 12px;">
+                        <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">模型 ID</label>
+                        <NInput
+                          v-model:value="model.id"
+                          :placeholder="t('pages.models.form.modelIdPlaceholder')"
+                        />
+                      </div>
+
+                      <!-- 3 列网格：输入类型、API格式、推理 -->
+                      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+                        <div>
+                          <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">输入类型</label>
+                          <NSelect
+                            v-model:value="model.input"
+                            :options="modelInputTypeOptions"
+                            multiple
+                            :placeholder="t('pages.models.form.modelInputTypesPlaceholder')"
+                          />
+                        </div>
+                        <div>
+                          <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">API 格式</label>
+                          <NSelect
+                            v-model:value="model.api"
+                            :options="modelApiOptions"
+                            placeholder="选择 API 格式"
+                            clearable
+                          />
+                        </div>
+                        <div>
+                          <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">推理</label>
+                          <NSelect
+                            v-model:value="model.reasoning"
+                            :options="reasoningOptions"
+                            placeholder="是否支持推理"
+                            clearable
+                            :value-type="'string'"
+                          />
+                        </div>
+                      </div>
+
+                      <!-- 2 列网格：上下文大小、最大输出 -->
+                      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
+                        <div>
+                          <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">上下文大小</label>
+                          <NInputNumber
+                            v-model:value="model.contextWindow"
+                            placeholder="Context Window"
+                            :min="0"
+                            style="width: 100%;"
+                          />
+                        </div>
+                        <div>
+                          <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">最大输出</label>
+                          <NInputNumber
+                            v-model:value="model.maxTokens"
+                            placeholder="Max Tokens"
+                            :min="0"
+                            style="width: 100%;"
+                          />
+                        </div>
+                      </div>
+
+                      <!-- 4 列网格：成本相关 -->
+                      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                        <div>
+                          <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">Input 成本</label>
+                          <NInputNumber
+                            v-model:value="(model.cost || {}).input"
+                            placeholder="每 1M tokens"
+                            :min="0"
+                            :step="0.1"
+                            style="width: 100%;"
+                          />
+                        </div>
+                        <div>
+                          <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">Output 成本</label>
+                          <NInputNumber
+                            v-model:value="(model.cost || {}).output"
+                            placeholder="每 1M tokens"
+                            :min="0"
+                            :step="0.1"
+                            style="width: 100%;"
+                          />
+                        </div>
+                        <div>
+                          <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">Cache Read</label>
+                          <NInputNumber
+                            v-model:value="(model.cost || {}).cacheRead"
+                            placeholder="每 1M tokens"
+                            :min="0"
+                            :step="0.01"
+                            style="width: 100%;"
+                          />
+                        </div>
+                        <div>
+                          <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">Cache Write</label>
+                          <NInputNumber
+                            v-model:value="(model.cost || {}).cacheWrite"
+                            placeholder="每 1M tokens"
+                            :min="0"
+                            :step="0.01"
+                            style="width: 100%;"
+                          />
+                        </div>
+                      </div>
+                    </NCard>
                     <NText depth="3" style="font-size: 12px;">
                       {{ t('pages.models.form.modelsHint') }}
                     </NText>
@@ -2662,46 +2866,148 @@ function handleCreateProviderClick() {
                   size="small"
                   type="primary"
                   dashed
-                  @click="createProviderForm.models.push({ id: '', input: ['text'] })"
+                  @click="createProviderForm.models.push({ id: '', input: ['text'], api: '', reasoning: 'no', contextWindow: undefined, maxTokens: undefined, cost: { input: undefined, output: undefined, cacheRead: undefined, cacheWrite: undefined } })"
                 >
                   {{ t('pages.models.form.addModel') }}
                 </NButton>
-                <div
+                <NCard
                   v-for="(model, index) in createProviderForm.models"
                   :key="index"
-                  style="display: flex; gap: 8px; align-items: center; width: 100%;"
+                  size="small"
                 >
-                  <NInput
-                    v-model:value="model.id"
-                    :placeholder="t('pages.models.form.modelIdPlaceholder')"
-                    style="flex: 1;"
-                  />
-                  <NSelect
-                    v-model:value="model.input"
-                    :options="modelInputTypeOptions"
-                    multiple
-                    :placeholder="t('pages.models.form.modelInputTypesPlaceholder')"
-                    style="width: 160px;"
-                  />
-                  <NButton
-                    size="small"
-                    :type="getPrimaryModelStatus('create', createProviderForm.id, model.id) === 'current' ? 'success' : getPrimaryModelStatus('create', createProviderForm.id, model.id) === 'pending' ? 'warning' : 'default'"
-                    :disabled="!model.id || getPrimaryModelStatus('create', createProviderForm.id, model.id) === 'current'"
-                    @click="setAsPendingPrimaryModel('create', createProviderForm.id, model.id)"
-                  >
-                    {{ getPrimaryModelStatus('create', createProviderForm.id, model.id) === 'current' ? t('pages.models.form.isDefault') : getPrimaryModelStatus('create', createProviderForm.id, model.id) === 'pending' ? t('pages.models.form.pendingDefault') : t('pages.models.form.setAsDefault') }}
-                  </NButton>
-                  <NButton
-                    size="small"
-                    quaternary
-                    type="error"
-                    @click="createProviderForm.models.splice(index, 1)"
-                  >
-                    <template #icon>
-                      <NIcon><CloseOutline /></NIcon>
-                    </template>
-                  </NButton>
-                </div>
+                  <template #header>
+                    <NSpace justify="space-between">
+                      <NText strong>模型 #{{ index + 1 }}</NText>
+                      <NSpace>
+                        <NButton
+                          size="small"
+                          :type="getPrimaryModelStatus('create', createProviderForm.id, model.id) === 'current' ? 'success' : getPrimaryModelStatus('create', createProviderForm.id, model.id) === 'pending' ? 'warning' : 'default'"
+                          :disabled="!model.id || getPrimaryModelStatus('create', createProviderForm.id, model.id) === 'current'"
+                          @click="setAsPendingPrimaryModel('create', createProviderForm.id, model.id)"
+                        >
+                          {{ getPrimaryModelStatus('create', createProviderForm.id, model.id) === 'current' ? t('pages.models.form.isDefault') : getPrimaryModelStatus('create', createProviderForm.id, model.id) === 'pending' ? t('pages.models.form.pendingDefault') : t('pages.models.form.setAsDefault') }}
+                        </NButton>
+                        <NButton
+                          size="small"
+                          quaternary
+                          type="error"
+                          @click="createProviderForm.models.splice(index, 1)"
+                        >
+                          <template #icon>
+                            <NIcon><CloseOutline /></NIcon>
+                          </template>
+                        </NButton>
+                      </NSpace>
+                    </NSpace>
+                  </template>
+
+                  <!-- 模型 ID -->
+                  <div style="margin-bottom: 12px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">模型 ID</label>
+                    <NInput
+                      v-model:value="model.id"
+                      :placeholder="t('pages.models.form.modelIdPlaceholder')"
+                    />
+                  </div>
+
+                  <!-- 3 列网格：输入类型、API格式、推理 -->
+                  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+                    <div>
+                      <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">输入类型</label>
+                      <NSelect
+                        v-model:value="model.input"
+                        :options="modelInputTypeOptions"
+                        multiple
+                        :placeholder="t('pages.models.form.modelInputTypesPlaceholder')"
+                      />
+                    </div>
+                    <div>
+                      <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">API 格式</label>
+                      <NSelect
+                        v-model:value="model.api"
+                        :options="modelApiOptions"
+                        placeholder="选择 API 格式"
+                        clearable
+                      />
+                    </div>
+                    <div>
+                      <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">推理</label>
+                      <NSelect
+                        v-model:value="model.reasoning"
+                        :options="reasoningOptions"
+                        placeholder="是否支持推理"
+                        clearable
+                        :value-type="'string'"
+                      />
+                    </div>
+                  </div>
+
+                  <!-- 2 列网格：上下文大小、最大输出 -->
+                  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px;">
+                    <div>
+                      <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">上下文大小</label>
+                      <NInputNumber
+                        v-model:value="model.contextWindow"
+                        placeholder="Context Window"
+                        :min="0"
+                        style="width: 100%;"
+                      />
+                    </div>
+                    <div>
+                      <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">最大输出</label>
+                      <NInputNumber
+                        v-model:value="model.maxTokens"
+                        placeholder="Max Tokens"
+                        :min="0"
+                        style="width: 100%;"
+                      />
+                    </div>
+                  </div>
+
+                  <!-- 4 列网格：成本相关 -->
+                  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                    <div>
+                      <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">Input 成本</label>
+                      <NInputNumber
+                        v-model:value="(model.cost || {}).input"
+                        placeholder="每 1M tokens"
+                        :min="0"
+                        :step="0.1"
+                        style="width: 100%;"
+                      />
+                    </div>
+                    <div>
+                      <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">Output 成本</label>
+                      <NInputNumber
+                        v-model:value="(model.cost || {}).output"
+                        placeholder="每 1M tokens"
+                        :min="0"
+                        :step="0.1"
+                        style="width: 100%;"
+                      />
+                    </div>
+                    <div>
+                      <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">Cache Read</label>
+                      <NInputNumber
+                        v-model:value="(model.cost || {}).cacheRead"
+                        placeholder="每 1M tokens"
+                        :min="0"
+                        :step="0.01"
+                        style="width: 100%;"
+                      />
+                    </div>
+                    <div>
+                      <label style="font-weight: 600; display: block; margin-bottom: 4px; font-size: 13px;">Cache Write</label>
+                      <NInputNumber
+                        v-model:value="(model.cost || {}).cacheWrite"
+                        placeholder="每 1M tokens"
+                        :min="0"
+                        :step="0.01"
+                        style="width: 100%;"
+                      />
+                    </div>
+                  </div>
+                </NCard>
                 <NText depth="3" style="font-size: 12px;">
                   {{ t('pages.models.form.modelsHint') }}
                 </NText>
